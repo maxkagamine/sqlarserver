@@ -1,0 +1,18 @@
+@model IndexModel
+@{
+    Layout = "_Layout";
+    ViewBag.Title = Model.Path;
+}
+
+<h1>@Model.Path</h1>
+
+<ul>
+    @foreach (var item in Model.Items)
+    {
+        <li><a href="@item.Path">@item.Name</a></li>
+    }
+</ul>
+
+<hr />
+
+<i>@Model.Items.Count items.</i>
