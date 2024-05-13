@@ -7,20 +7,20 @@ using SqlarServer.Models;
 namespace SqlarServer.Controllers;
 public class SqlarController : Controller
 {
-    [Route("{**path}")]
+    [Route("{**path}", Name = "Index")]
     public IActionResult Index(string path = "/")
     {
-        path = NormalizePath(path);
+        path = NormalizePath(path, true);
 
         var items = new List<ItemModel>()
         {
-            new("foo", $"{(path == "/" ? "" : path)}/foo"),
-            new("bar", $"{(path == "/" ? "" : path)}/bar")
+            new("foo/", path + "foo/"),
+            new("bar.txt", path + "bar.txt", DateTime.UtcNow, FileSizeFormatter.FormatBytes(1000000)),
         };
 
         if (path != "/")
         {
-            items.Insert(0, new("..", NormalizePath(path[..path.LastIndexOf('/')])));
+            items.Insert(0, new("../", path[..(path.LastIndexOf('/', path.Length - 2) + 1)]));
         }
 
         var model = new IndexModel(path, items);
@@ -28,6 +28,20 @@ public class SqlarController : Controller
         return View(model);
     }
 
-    private static string NormalizePath(string path)
-        => "/" + path.Trim('/');
+    /// <summary>
+    /// Ensures paths start with a leading slash and that directories end in a trailing slash.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <param name="isDirectory">Whether this path is of a directory.</param>
+    private static string NormalizePath(string path, bool isDirectory)
+    {
+        var str = "/" + path.Trim('/');
+
+        if (isDirectory && str != "/")
+        {
+            str += "/";
+        }
+
+        return str;
+    }
 }
