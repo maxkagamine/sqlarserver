@@ -1,17 +1,21 @@
 @model IndexModel
 @{
     Layout = "_Layout";
-    ViewBag.Title = Model.Path;
+    ViewBag.Title = $"Index of {Model.Path}";
 }
 
-<h1>@Model.Path</h1>
+<h1>@ViewBag.Title</h1>
 
-<ul>
+<table>
     @foreach (var item in Model.Items)
     {
-        <li><a href="@item.Path">@item.Name</a></li>
+        <tr>
+            <td><a asp-route="Index" asp-route-path="@item.Path">@item.Name</a></td>
+            <td>@item.DateModified?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+            <td>@item.FormattedSize</td>
+        </tr>
     }
-</ul>
+</table>
 
 <hr />
 

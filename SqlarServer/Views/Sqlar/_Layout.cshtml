@@ -2,6 +2,18 @@
 <html>
   <head>
     <title>@ViewBag.Title</title>
+    <style>
+      table {
+        font-family: monospace;
+        margin: 1em 0;
+      }
+      td:first-child {
+        min-width: 250px;
+      }
+      td + td {
+        padding-left: 80px;
+      }
+    </style>
   </head>
   <body>
     @RenderBody()
