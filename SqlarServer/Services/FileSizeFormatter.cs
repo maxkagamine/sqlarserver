@@ -17,13 +17,13 @@ public static class FileSizeFormatter
 
     public static string FormatBytes(long bytes, bool si = false) => ((double)bytes, si) switch
     {
-        ( >= Ti, false) => $"{bytes / Ti:0.##} TiB",
-        ( >= Gi, false) => $"{bytes / Gi:0.##} GiB",
-        ( >= Mi, false) => $"{bytes / Mi:0.##} MiB",
+        ( >= 1023.995 * Gi, false) => $"{bytes / Ti:0.##} TiB",
+        ( >= 1023.995 * Mi, false) => $"{bytes / Gi:0.##} GiB",
+        ( >= 1023.5 * Ki, false) => $"{bytes / Mi:0.##} MiB",
         ( >= Ki, false) => $"{bytes / Ki:0} KiB",
-        ( >= T, true) => $"{bytes / T:0.##} TB",
-        ( >= G, true) => $"{bytes / G:0.##} GB",
-        ( >= M, true) => $"{bytes / M:0.##} MB",
+        ( >= 999.995 * G, true) => $"{bytes / T:0.##} TB",
+        ( >= 999.995 * M, true) => $"{bytes / G:0.##} GB",
+        ( >= 999.5 * K, true) => $"{bytes / M:0.##} MB",
         ( >= K, true) => $"{bytes / K:0} KB",
         _ => $"{bytes} B"
     };
