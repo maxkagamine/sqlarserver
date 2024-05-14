@@ -30,6 +30,11 @@ public class SqlarService : ISqlarService
 
     public string NormalizePath(string path, bool isDirectory)
     {
+        if (path is "" or ".") // Acceptable as input to ListDirectory()
+        {
+            return "/";
+        }
+
         if (path.StartsWith("./"))
         {
             path = path[2..];

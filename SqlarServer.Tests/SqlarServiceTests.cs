@@ -1,6 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
@@ -198,5 +199,67 @@ public sealed class SqlarServiceTests : IDisposable
             Assert.Null(x.DateModified);
             Assert.Null(x.FormattedSize);
         });
+    }
+
+    [Fact]
+    public void ListDirectory_SortsDirectoriesFirst()
+    {
+        var service = CreateService([
+            ("a", Directory, DateTime.Now, []),
+            ("b", RegularFile, DateTime.Now, []),
+            ("c", Directory, DateTime.Now, []),
+            ("d", RegularFile, DateTime.Now, [])
+        ]);
+
+        Assert.Equal(["a", "c", "b", "d"],
+            service.ListDirectory("/")!.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void ListDirectory_SortsNumerically() // aka "version" or "human" sort
+    {
+        var service = CreateService([
+            ("foo10.txt", RegularFile, DateTime.Now, []),
+            ("bar", RegularFile, DateTime.Now, []),
+            ("foo9.txt", RegularFile, DateTime.Now, []),
+        ]);
+
+        Assert.Equal(["bar", "foo9.txt", "foo10.txt"],
+            service.ListDirectory("/")!.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void ListDirectory_IgnoresLeadingSlashOrDotSlash()
+    {
+        var service = CreateService([
+            ("dir 1/dir 2/file 1", Directory, DateTime.Now, []),
+            ("./dir 1/dir 2/file 2", RegularFile, DateTime.Now, []),
+            ("/file 3", RegularFile, DateTime.Now, []),
+        ]);
+
+        var rootByEmptyString = service.ListDirectory("");
+        var rootBySlash = service.ListDirectory("/");
+        var rootByDotSlash = service.ListDirectory("./");
+        var rootByDot = service.ListDirectory(".");
+
+        Assert.NotNull(rootByEmptyString);
+        Assert.NotNull(rootBySlash);
+        Assert.NotNull(rootByDotSlash);
+        Assert.NotNull(rootByDot);
+
+        Assert.Equal(rootByEmptyString, rootBySlash);
+        Assert.Equal(rootByEmptyString, rootByDotSlash);
+        Assert.Equal(rootByEmptyString, rootByDot);
+
+        Assert.Collection(rootBySlash,
+            x => Assert.Equal(("dir 1", "/dir 1/"), (x.Name, x.Path)),
+            x => Assert.Equal(("file 3", "/file 1"), (x.Name, x.Path)));
+
+        var dir2 = service.ListDirectory("dir 1/dir 2/");
+
+        Assert.NotNull(dir2);
+        Assert.Collection(dir2,
+            x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path)),
+            x => Assert.Equal(("file 1", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
     }
 }
