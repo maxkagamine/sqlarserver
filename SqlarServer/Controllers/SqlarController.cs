@@ -3,16 +3,24 @@
 
 using Microsoft.AspNetCore.Mvc;
 using SqlarServer.Models;
+using SqlarServer.Services;
 
 namespace SqlarServer.Controllers;
 public class SqlarController : Controller
 {
+    private readonly ISqlarService sqlarService;
+
+    public SqlarController(ISqlarService sqlarService)
+    {
+        this.sqlarService = sqlarService;
+    }
+
     [Route("{**path}", Name = "Index")]
     public IActionResult Index(string path = "/")
     {
-        path = NormalizePath(path, true);
+        path = sqlarService.NormalizePath(path, true); // TODO: Make private if the controller ends up not needing it
 
-        var items = new List<ItemModel>()
+        var items = new List<DirectoryEntry>()
         {
             new("foo/", path + "foo/"),
             new("bar.txt", path + "bar.txt", DateTime.UtcNow, FileSizeFormatter.FormatBytes(1000000)),
@@ -26,22 +34,5 @@ public class SqlarController : Controller
         var model = new IndexModel(path, items);
 
         return View(model);
-    }
-
-    /// <summary>
-    /// Ensures paths start with a leading slash and that directories end in a trailing slash.
-    /// </summary>
-    /// <param name="path">The path to normalize.</param>
-    /// <param name="isDirectory">Whether this path is of a directory.</param>
-    private static string NormalizePath(string path, bool isDirectory)
-    {
-        var str = "/" + path.Trim('/');
-
-        if (isDirectory && str != "/")
-        {
-            str += "/";
-        }
-
-        return str;
     }
 }

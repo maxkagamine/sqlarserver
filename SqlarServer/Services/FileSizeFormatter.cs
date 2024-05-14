@@ -1,7 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-namespace SqlarServer;
+namespace SqlarServer.Services;
 
 public static class FileSizeFormatter
 {
