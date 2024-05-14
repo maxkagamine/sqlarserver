@@ -3,23 +3,23 @@
 
 namespace SqlarServer.Models;
 
-public class SqlarOptions
+public record SqlarOptions
 {
-    public required string ArchivePath { get; set; }
+    public required string ArchivePath { get; init; }
 
-    public required string TableName { get; set; }
+    public required string TableName { get; init; }
 
-    public required string NameColumn { get; set; }
+    public required string NameColumn { get; init; }
 
-    public required string ModeColumn { get; set; }
+    public required string ModeColumn { get; init; }
 
-    public required string DateModifiedColumn { get; set; }
+    public required string DateModifiedColumn { get; init; }
 
-    public required string SizeColumn { get; set; }
+    public required string SizeColumn { get; init; }
 
-    public required string DataColumn { get; set; }
+    public required string DataColumn { get; init; }
 
-    public required SizeFormat SizeFormat { get; set; }
+    public required SizeFormat SizeFormat { get; init; }
 }
 
 public enum SizeFormat
