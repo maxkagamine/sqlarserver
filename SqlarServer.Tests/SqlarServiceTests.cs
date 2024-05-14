@@ -1,7 +1,6 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
@@ -149,5 +148,55 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(service.ListDirectory("foo"));
         Assert.Null(service.ListDirectory("bar"));
+    }
+
+    [Fact]
+    public void ListDirectory_FilesIncludeDateModified()
+    {
+        var date = new DateTime(2024, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+
+        var service = CreateService([
+            ("foo", RegularFile, date, []),
+        ]);
+
+        var root = service.ListDirectory("/");
+        var foo = root!.Single();
+
+        Assert.Equal(date, foo.DateModified);
+    }
+
+    [Theory]
+    [InlineData(SizeFormat.Bytes, "39000")]
+    [InlineData(SizeFormat.Binary, "38 KiB")]
+    [InlineData(SizeFormat.SI, "39 KB")]
+    public void ListDirectory_FilesIncludeFormattedSize(SizeFormat format, string expected)
+    {
+        const int Size = 39000;
+
+        var service = CreateService([
+            ("foo", RegularFile, DateTime.Now, Enumerable.Repeat<byte>(39, Size).ToArray()),
+        ], DefaultOptions with { SizeFormat = format });
+
+        var root = service.ListDirectory("/");
+        var foo = root!.Single();
+
+        Assert.Equal(expected, foo.FormattedSize);
+    }
+
+    [Fact]
+    public void ListDirectory_DirectoriesLeaveMetadataNull()
+    {
+        var service = CreateService([
+            ("foo", Directory, DateTime.Now, []),
+            ("bar/file", RegularFile, DateTime.Now, [39])
+        ]);
+
+        var root = service.ListDirectory("/");
+
+        Assert.All(root!, x =>
+        {
+            Assert.Null(x.DateModified);
+            Assert.Null(x.FormattedSize);
+        });
     }
 }
