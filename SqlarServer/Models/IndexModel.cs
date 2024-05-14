@@ -1,5 +1,3 @@
 namespace SqlarServer.Models;
 
-record IndexModel(string Path, IReadOnlyList<ItemModel> Items);
-
-record ItemModel(string Name, string Path, DateTime? DateModified = null, string? FormattedSize = null);
+public record IndexModel(string Path, IReadOnlyList<DirectoryEntry> Entries);

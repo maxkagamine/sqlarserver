@@ -7,7 +7,7 @@
 <h1>@ViewBag.Title</h1>
 
 <table>
-    @foreach (var item in Model.Items)
+    @foreach (var item in Model.Entries)
     {
         <tr>
             <td><a asp-route="Index" asp-route-path="@item.Path">@item.Name</a></td>
@@ -19,4 +19,4 @@
 
 <hr />
 
-<i>@Model.Items.Count items.</i>
+<i>@Model.Entries.Count items.</i>

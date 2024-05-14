@@ -1,4 +1,4 @@
-﻿namespace SqlarServer;
+﻿namespace SqlarServer.Services;
 
 public static class FileSizeFormatter
 {
