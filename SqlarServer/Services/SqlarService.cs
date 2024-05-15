@@ -1,6 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
@@ -138,7 +139,7 @@ public class SqlarService : ISqlarService
         // Find row id
         using var sql = connection.CreateCommand();
         sql.CommandText = $"""
-            select _rowid_ from {options.TableName}
+            select _rowid_, sz from {options.TableName}
             where
                 (name =         $trimmedPath or
                  name =  '/' || $trimmedPath or
@@ -147,13 +148,25 @@ public class SqlarService : ISqlarService
             limit 1;
             """;
         sql.Parameters.AddWithValue("$trimmedPath", path.Trim('/'));
-        long? rowid = (long?)sql.ExecuteScalar();
 
-        // Return the blob if found
-        // This approach avoids unnecessary memory allocation (see https://github.com/dotnet/efcore/issues/24312)
-        return rowid.HasValue ?
-            new SqliteBlob(connection, options.TableName, "data", rowid.Value, readOnly: true) :
-            null;
+        using var reader = sql.ExecuteReader();
+
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        long rowid = reader.GetInt64(0);
+        long size = reader.GetInt64(1);
+
+        // Return the blob if found, decompressing if necessary[0]. This approach avoids unnecessary memory
+        // allocation[1]; however, not using sqlar_uncompress[2] means this will break if another compression algorithm
+        // is added in the future. Unfortunately the nuget package doesn't seem to include the sqlar extension, anyway.
+        // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
+        // [1]: https://github.com/dotnet/efcore/issues/24312
+        // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
+        var blob = new SqliteBlob(connection, options.TableName, "data", rowid, readOnly: true);
+        return blob.Length == size ? blob : new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
     }
 
     public string NormalizePath(string path, bool isDirectory)

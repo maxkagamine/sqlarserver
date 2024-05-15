@@ -396,6 +396,26 @@ public sealed class SqlarServiceTests : IDisposable
         Assert.Equal(39, stream.ReadByte());
     }
 
+    [Fact]
+    public void GetStream_UncompressesData()
+    {
+        var service = CreateService([]);
+
+        // Add a row with compressed data, as created by the sqlite3 CLI
+        var insert = connection.CreateCommand();
+        insert.CommandText = """
+            INSERT INTO sqlar(name, mode, mtime, sz, data)
+            VALUES ('rin.txt', 33279, 1715759479, 20, unhex('789C2BCAC400790056EF0843'));
+            """;
+        Assert.Equal(1, insert.ExecuteNonQuery());
+
+        using var stream = service.GetStream("rin.txt");
+        Assert.NotNull(stream);
+
+        using var reader = new StreamReader(stream);
+        Assert.Equal("riiiiiiiiiiiiiiiiiin", reader.ReadToEnd());
+    }
+
     [Theory]
     [InlineData("foo/bar", true, "/foo/bar/")]
     [InlineData("foo/bar", false, "/foo/bar")]
