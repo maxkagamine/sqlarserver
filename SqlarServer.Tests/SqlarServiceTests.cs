@@ -1,6 +1,8 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -261,6 +263,68 @@ public sealed class SqlarServiceTests : IDisposable
         Assert.Collection(dir2,
             x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path)),
             x => Assert.Equal(("file 1", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
+    }
+
+    [Fact]
+    public void GetStream_ReturnsBlobStreamForFile()
+    {
+        var expected = "リンちゃんマジ天使";
+
+        var service = CreateService([
+            ("foo/bar.txt", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes(expected))
+        ]);
+
+        using var stream = service.GetStream("foo/bar.txt");
+
+        Assert.NotNull(stream);
+        
+        using var reader = new StreamReader(stream);
+        var actual = reader.ReadToEnd();
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void GetStream_ReturnsNullIfNotFound()
+    {
+        var service = CreateService([]);
+        var result = service.GetStream("foo/bar.txt");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GetStream_ReturnsNullIfNotAFile()
+    {
+        var service = CreateService([
+            ("foo", Directory, DateTime.Now, [])
+        ]);
+
+        var result = service.GetStream("foo");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GetStream_IgnoresLeadingSlashOrDotSlash()
+    {
+        var service = CreateService([
+            ("foo/test 1", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("鏡音リン")),
+            ("/foo/test 2", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("初音ミク")),
+            ("./foo/test 3", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("巡音ルカ"))
+        ]);
+
+        void GetAndAssert(string path, string expected)
+        {
+            using var stream = service.GetStream(path);
+            Assert.NotNull(stream);
+            using var reader = new StreamReader(stream);
+            Assert.Equal(expected, reader.ReadToEnd());
+        }
+
+        GetAndAssert("/foo/test 1/", "鏡音リン");
+        GetAndAssert("./foo/test 2", "初音ミク");
+        GetAndAssert("foo/test 3", "巡音ルカ");
     }
 
     [Theory]
