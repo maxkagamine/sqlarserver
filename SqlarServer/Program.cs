@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
@@ -24,6 +25,17 @@ builder.Services.AddSingleton(serviceProvider =>
 
 builder.Services.AddOptions<SqlarOptions>().BindConfiguration("");
 builder.Services.AddSingleton<ISqlarService, SqlarService>();
+
+builder.Services.AddSingleton<IContentTypeProvider>(new FileExtensionContentTypeProvider()
+{
+    Mappings =
+    {
+        // A few common browser-supported formats not included in .NET's content type map
+        { ".avif", "image/avif" },
+        { ".flac", "audio/flac" },
+        { ".opus", "audio/ogg" },
+    }
+});
 
 var app = builder.Build();
 
