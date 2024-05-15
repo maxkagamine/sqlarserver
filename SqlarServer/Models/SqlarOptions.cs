@@ -9,16 +9,6 @@ public record SqlarOptions
 
     public required string TableName { get; init; }
 
-    public required string NameColumn { get; init; }
-
-    public required string ModeColumn { get; init; }
-
-    public required string DateModifiedColumn { get; init; }
-
-    public required string SizeColumn { get; init; }
-
-    public required string DataColumn { get; init; }
-
     public required SizeFormat SizeFormat { get; init; }
 }
 

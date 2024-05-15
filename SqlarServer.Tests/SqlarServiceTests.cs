@@ -1,9 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
@@ -16,13 +14,8 @@ public sealed class SqlarServiceTests : IDisposable
 {
     private static readonly SqlarOptions DefaultOptions = new()
     {
-        ArchivePath = "",
+        ArchivePath = "", // Not used here
         TableName = "sqlar",
-        NameColumn = "name",
-        ModeColumn = "mode",
-        DateModifiedColumn = "mtime",
-        SizeColumn = "sz",
-        DataColumn = "data",
         SizeFormat = SizeFormat.Binary
     };
 
@@ -49,11 +42,11 @@ public sealed class SqlarServiceTests : IDisposable
         using var createTable = connection.CreateCommand();
         createTable.CommandText = $"""
             CREATE TABLE IF NOT EXISTS {options.TableName} (
-              {options.NameColumn} TEXT PRIMARY KEY,  -- name of the file
-              {options.ModeColumn} INT,               -- access permissions
-              {options.DateModifiedColumn} INT,       -- last modification time
-              {options.SizeColumn} INT,               -- original file size
-              {options.DataColumn} BLOB               -- compressed content
+              name TEXT PRIMARY KEY,  -- name of the file
+              mode INT,               -- access permissions
+              mtime INT,              -- last modification time
+              sz INT,                 -- original file size
+              data BLOB               -- compressed content
             )
             """;
         createTable.ExecuteNonQuery();
@@ -63,19 +56,19 @@ public sealed class SqlarServiceTests : IDisposable
         {
             using var insert = connection.CreateCommand();
             insert.CommandText = $"""
-                INSERT INTO {options.TableName}({options.NameColumn},{options.ModeColumn},{options.DateModifiedColumn},{options.SizeColumn},{options.DataColumn})
+                INSERT INTO {options.TableName}(name, mode, mtime, sz, data)
                 VALUES($name, $mode, $mtime, $sz, zeroblob($sz));
                 SELECT last_insert_rowid();
                 """;
             insert.Parameters.AddWithValue("$name", name);
             insert.Parameters.AddWithValue("$mode", mode);
-            insert.Parameters.AddWithValue("$mtime", mtime.ToUniversalTime().ToString("s"));
+            insert.Parameters.AddWithValue("$mtime", new DateTimeOffset(mtime).ToUnixTimeSeconds());
             insert.Parameters.AddWithValue("$sz", data.Length);
             var rowId = (long)insert.ExecuteScalar()!;
 
             if (data.Length > 0)
             {
-                using var blob = new SqliteBlob(connection, options.TableName, options.DataColumn, rowId);
+                using var blob = new SqliteBlob(connection, options.TableName, "data", rowId);
                 blob.Write(data);
             }
         }
@@ -343,5 +336,21 @@ public sealed class SqlarServiceTests : IDisposable
         var actual = service.NormalizePath(input, isDirectory);
 
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void CanOverrideTableName()
+    {
+        var service = CreateService([
+            ("blah", RegularFile, DateTime.Now, [])
+        ], DefaultOptions with
+        {
+            TableName = "Files"
+        });
+
+        var root = service.ListDirectory("/");
+
+        Assert.NotNull(root);
+        Assert.Equal(["blah"], root.Select(x => x.Name));
     }
 }
