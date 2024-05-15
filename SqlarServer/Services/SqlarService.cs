@@ -12,6 +12,7 @@ public class SqlarService : ISqlarService
     // https://github.com/torvalds/linux/blob/master/include/uapi/linux/stat.h
     private const int S_IFMT = 0xF000;
     private const int S_IFDIR = 0x4000;
+    private const int S_IFREG = 0x8000;
 
     private readonly SqliteConnection connection;
     private readonly SqlarOptions options;
@@ -27,7 +28,7 @@ public class SqlarService : ISqlarService
 
     public IEnumerable<DirectoryEntry>? ListDirectory(string path)
     {
-        path = NormalizePath(path, true);
+        path = NormalizePath(path, isDirectory: true);
 
         // Search the db for an explicit directory entry matching the given path, if present (as the directory may exist
         // but be empty), and any and all descendents (not only direct children, as its children may include implicit
@@ -124,7 +125,35 @@ public class SqlarService : ISqlarService
 
     public Stream? GetStream(string path)
     {
-        throw new NotImplementedException();
+        // TODO: Support symlinks.
+        //
+        // This should be fairly easy to implement for *file* symlinks -- just recursively call GetStream() while
+        // keeping track of paths we've already seen (to avoid an infinite loop). The challenge would be supporting
+        // *directory* symlinks, as any time we hit a 404 situation (both here and in ListDirectory), we would need to
+        // walk up the directory tree, testing for symlinks, then add the rest of the path onto the symlink's target,
+        // and do that recursively until we either find a file/directory or run out of symlinks.
+
+        path = NormalizePath(path, isDirectory: false);
+
+        // Find row id
+        using var sql = connection.CreateCommand();
+        sql.CommandText = $"""
+            select _rowid_ from {options.TableName}
+            where
+                (name =         $trimmedPath or
+                 name =  '/' || $trimmedPath or
+                 name = './' || $trimmedPath) and
+                (mode & {S_IFMT}) = {S_IFREG}
+            limit 1;
+            """;
+        sql.Parameters.AddWithValue("$trimmedPath", path.Trim('/'));
+        long? rowid = (long?)sql.ExecuteScalar();
+
+        // Return the blob if found
+        // This approach avoids unnecessary memory allocation (see https://github.com/dotnet/efcore/issues/24312)
+        return rowid.HasValue ?
+            new SqliteBlob(connection, options.TableName, "data", rowid.Value, readOnly: true) :
+            null;
     }
 
     public string NormalizePath(string path, bool isDirectory)
