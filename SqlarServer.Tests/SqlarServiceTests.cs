@@ -262,4 +262,22 @@ public sealed class SqlarServiceTests : IDisposable
             x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path)),
             x => Assert.Equal(("file 1", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
     }
+
+    [Theory]
+    [InlineData("foo/bar", true, "/foo/bar/")]
+    [InlineData("foo/bar", false, "/foo/bar")]
+    [InlineData("/foo/bar", true, "/foo/bar/")]
+    [InlineData("/foo/bar/", false, "/foo/bar")]
+    [InlineData("./foo/bar", false, "/foo/bar")]
+    [InlineData("/", true, "/")]
+    [InlineData("./", true, "/")]
+    [InlineData(".", true, "/")]
+    [InlineData("", true, "/")]
+    public void NormalizePath(string input, bool isDirectory, string expected)
+    {
+        var service = CreateService([]);
+        var actual = service.NormalizePath(input, isDirectory);
+
+        Assert.Equal(expected, actual);
+    }
 }
