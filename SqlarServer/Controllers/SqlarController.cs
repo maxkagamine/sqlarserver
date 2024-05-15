@@ -35,6 +35,7 @@ public class SqlarController : Controller
         if (entries is not null)
         {
             var list = entries.ToList();
+            int count = list.Count;
             path = sqlarService.NormalizePath(path, isDirectory: true);
 
             // Add ".." link
@@ -44,7 +45,7 @@ public class SqlarController : Controller
                 list.Insert(0, new("../", parentDirectory));
             }
 
-            var model = new IndexModel(path, list);
+            var model = new IndexModel(path, count, list);
             return View(model);
         }
 
