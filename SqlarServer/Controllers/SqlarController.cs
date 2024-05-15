@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using SqlarServer.Models;
 using SqlarServer.Services;
 
@@ -9,30 +10,47 @@ namespace SqlarServer.Controllers;
 public class SqlarController : Controller
 {
     private readonly ISqlarService sqlarService;
+    private readonly IContentTypeProvider contentTypeProvider;
 
-    public SqlarController(ISqlarService sqlarService)
+    public SqlarController(ISqlarService sqlarService, IContentTypeProvider contentTypeProvider)
     {
         this.sqlarService = sqlarService;
+        this.contentTypeProvider = contentTypeProvider;
     }
 
     [Route("{**path}", Name = "Index")]
     public IActionResult Index(string path = "/")
     {
-        path = sqlarService.NormalizePath(path, true); // TODO: Make private if the controller ends up not needing it
-
-        var items = new List<DirectoryEntry>()
+        // Check if requesting a file and return the blob stream if so
+        var stream = sqlarService.GetStream(path);
+        if (stream is not null)
         {
-            new("foo/", path + "foo/"),
-            new("bar.txt", path + "bar.txt", DateTime.UtcNow, FileSizeFormatter.FormatBytes(1000000)),
-        };
+            if (!contentTypeProvider.TryGetContentType(path, out string? contentType))
+            {
+                contentType = "application/octet-stream";
+            }
 
-        if (path != "/")
-        {
-            items.Insert(0, new("../", path[..(path.LastIndexOf('/', path.Length - 2) + 1)]));
+            return new FileStreamResult(stream, contentType);
         }
 
-        var model = new IndexModel(path, items);
+        // See if it's a directory
+        var entries = sqlarService.ListDirectory(path);
+        if (entries is not null)
+        {
+            var list = entries.ToList();
+            path = sqlarService.NormalizePath(path, isDirectory: true);
 
-        return View(model);
+            // Add ".." link
+            if (path != "/")
+            {
+                string parentDirectory = path[..(path.LastIndexOf('/', path.Length - 2) + 1)];
+                list.Insert(0, new("../", parentDirectory));
+            }
+
+            var model = new IndexModel(path, list);
+            return View(model);
+        }
+
+        return NotFound();
     }
 }
