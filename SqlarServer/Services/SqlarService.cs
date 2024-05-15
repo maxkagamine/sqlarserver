@@ -22,7 +22,7 @@ public class SqlarService : ISqlarService
         this.connection = connection;
         this.options = options.Value;
 
-        comparer = new(); // TODO: Add option for sorting directories first or not
+        comparer = new() { SortDirectoriesFirst = options.Value.SortDirectoriesFirst };
     }
 
     public IEnumerable<DirectoryEntry>? ListDirectory(string path)

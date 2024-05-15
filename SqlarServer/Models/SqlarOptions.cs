@@ -10,6 +10,8 @@ public record SqlarOptions
     public required string TableName { get; init; }
 
     public required SizeFormat SizeFormat { get; init; }
+
+    public required bool SortDirectoriesFirst { get; init; }
 }
 
 public enum SizeFormat

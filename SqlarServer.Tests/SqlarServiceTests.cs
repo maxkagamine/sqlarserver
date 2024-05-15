@@ -16,7 +16,8 @@ public sealed class SqlarServiceTests : IDisposable
     {
         ArchivePath = "", // Not used here
         TableName = "sqlar",
-        SizeFormat = SizeFormat.Binary
+        SizeFormat = SizeFormat.Binary,
+        SortDirectoriesFirst = true,
     };
 
     // File modes. Can be shown with `stat --format=%f`. Only the S_IFREG & S_IFDIR bits are actually relevant here:
@@ -231,6 +232,23 @@ public sealed class SqlarServiceTests : IDisposable
         ]);
 
         Assert.Equal(["a/", "c/", "b", "d"],
+            service.ListDirectory("/")!.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void ListDirectory_CanSortDirectoriesAlongsideFiles()
+    {
+        var service = CreateService([
+            ("a", Directory, DateTime.Now, []),
+            ("b", RegularFile, DateTime.Now, []),
+            ("c", Directory, DateTime.Now, []),
+            ("d", RegularFile, DateTime.Now, [])
+        ], DefaultOptions with
+        {
+            SortDirectoriesFirst = false
+        });
+
+        Assert.Equal(["a/", "b", "c/", "d"],
             service.ListDirectory("/")!.Select(x => x.Name));
     }
 
