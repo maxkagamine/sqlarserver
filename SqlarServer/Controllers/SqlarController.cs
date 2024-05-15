@@ -18,7 +18,8 @@ public class SqlarController : Controller
         this.contentTypeProvider = contentTypeProvider;
     }
 
-    [Route("{**path}", Name = "Index")]
+    [HttpGet("{**path}", Name = "Index")]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Index(string path = "/")
     {
         // Check if requesting a file and return the blob stream if so
