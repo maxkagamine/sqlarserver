@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.4" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.5" />
+    <PackageReference Include="NaturalSort.Extension" Version="4.3.0" />
   </ItemGroup>
 
 </Project>
