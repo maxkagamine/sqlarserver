@@ -259,6 +259,28 @@ public sealed class SqlarServiceTests : IDisposable
     }
 
     [Fact]
+    public void ListDirectory_SupportsSpecialCharacters()
+    {
+        var service = CreateService([
+            ("foo's bar", Directory, DateTime.Now, []),
+            ("foo's bar/テスト ñó. 1", Directory, DateTime.Now, []),
+            ("foo's bar/テスト ñó. 1/😝", RegularFile, DateTime.Now, [])
+        ]);
+
+        var root = service.ListDirectory("/");
+        Assert.NotNull(root);
+        Assert.Equal(["foo's bar"], root.Select(x => x.Name));
+
+        var foo = service.ListDirectory("foo's bar");
+        Assert.NotNull(foo);
+        Assert.Equal(["テスト ñó. 1"], foo.Select(x => x.Name));
+
+        var test = service.ListDirectory("テスト ñó. 1");
+        Assert.NotNull(test);
+        Assert.Equal(["😝"], foo.Select(x => x.Name));
+    }
+
+    [Fact]
     public void GetStream_ReturnsBlobStreamForFile()
     {
         var expected = "リンちゃんマジ天使";
@@ -318,6 +340,18 @@ public sealed class SqlarServiceTests : IDisposable
         GetAndAssert("/foo/test 1/", "鏡音リン");
         GetAndAssert("./foo/test 2", "初音ミク");
         GetAndAssert("foo/test 3", "巡音ルカ");
+    }
+
+    [Fact]
+    public void GetStream_SupportsSpecialCharacters()
+    {
+        var service = CreateService([
+            ("foo's bar/テスト ñó. 1/😝", RegularFile, DateTime.Now, [39])
+        ]);
+
+        using var stream = service.GetStream("foo's bar/テスト ñó. 1/😝");
+        Assert.NotNull(stream);
+        Assert.Equal(39, stream.ReadByte());
     }
 
     [Theory]
