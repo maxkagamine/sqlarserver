@@ -91,15 +91,15 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(root);
         Assert.Collection(root,
-            x => Assert.Equal(("dir 1", "/dir 1/"), (x.Name, x.Path)),
-            x => Assert.Equal(("dir 2", "/dir 2/"), (x.Name, x.Path)),
+            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
+            x => Assert.Equal(("dir 2/", "/dir 2/"), (x.Name, x.Path)),
             x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path)));
 
         var dir1 = service.ListDirectory("/dir 1");
 
         Assert.NotNull(dir1);
         Assert.Collection(dir1,
-            x => Assert.Equal(("child dir", "/dir 1/child dir/"), (x.Name, x.Path)),
+            x => Assert.Equal(("child dir/", "/dir 1/child dir/"), (x.Name, x.Path)),
             x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path)));
 
         var childDir = service.ListDirectory("/dir 1/child dir");
@@ -121,14 +121,14 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(root);
         Assert.Collection(root,
-            x => Assert.Equal(("dir 1", "/dir 1/"), (x.Name, x.Path)),
+            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
             x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path)));
 
         var dir1 = service.ListDirectory("/dir 1");
 
         Assert.NotNull(dir1);
         Assert.Collection(dir1,
-            x => Assert.Equal(("child dir", "/dir 1/child dir/"), (x.Name, x.Path)),
+            x => Assert.Equal(("child dir/", "/dir 1/child dir/"), (x.Name, x.Path)),
             x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path)));
     }
 
@@ -141,6 +141,30 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(service.ListDirectory("foo"));
         Assert.Null(service.ListDirectory("bar"));
+    }
+
+    [Fact]
+    public void ListDirectory_ReturnsNullIfFile()
+    {
+        var service = CreateService([
+            ("foo", RegularFile, DateTime.Now, []),
+        ]);
+
+        Assert.Null(service.ListDirectory("foo"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ListDirectory_EmptyArchiveIsEmpty(bool includeRootInArchive)
+    {
+        var service = CreateService(includeRootInArchive ?
+            [(".", Directory, DateTime.Now, [])] : // This can happen if running `sqlite3 -Acf <db> .` in an empty dir
+            []);
+        var root = service.ListDirectory("/");
+
+        Assert.NotNull(root);
+        Assert.Empty(root);
     }
 
     [Fact]
@@ -203,12 +227,12 @@ public sealed class SqlarServiceTests : IDisposable
             ("d", RegularFile, DateTime.Now, [])
         ]);
 
-        Assert.Equal(["a", "c", "b", "d"],
+        Assert.Equal(["a/", "c/", "b", "d"],
             service.ListDirectory("/")!.Select(x => x.Name));
     }
 
     [Fact]
-    public void ListDirectory_SortsNumerically() // aka "version" or "human" sort
+    public void ListDirectory_SortsNumerically() // aka "version" or "natural" sort
     {
         var service = CreateService([
             ("foo10.txt", RegularFile, DateTime.Now, []),
@@ -224,7 +248,7 @@ public sealed class SqlarServiceTests : IDisposable
     public void ListDirectory_IgnoresLeadingSlashOrDotSlash()
     {
         var service = CreateService([
-            ("dir 1/dir 2/file 1", Directory, DateTime.Now, []),
+            ("dir 1/dir 2/file 1", RegularFile, DateTime.Now, []),
             ("./dir 1/dir 2/file 2", RegularFile, DateTime.Now, []),
             ("/file 3", RegularFile, DateTime.Now, []),
         ]);
@@ -244,15 +268,15 @@ public sealed class SqlarServiceTests : IDisposable
         Assert.Equal(rootByEmptyString, rootByDot);
 
         Assert.Collection(rootBySlash,
-            x => Assert.Equal(("dir 1", "/dir 1/"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 3", "/file 1"), (x.Name, x.Path)));
+            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
+            x => Assert.Equal(("file 3", "/file 3"), (x.Name, x.Path)));
 
         var dir2 = service.ListDirectory("dir 1/dir 2/");
 
         Assert.NotNull(dir2);
         Assert.Collection(dir2,
             x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 1", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
+            x => Assert.Equal(("file 2", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
     }
 
     [Fact]
@@ -266,15 +290,15 @@ public sealed class SqlarServiceTests : IDisposable
 
         var root = service.ListDirectory("/");
         Assert.NotNull(root);
-        Assert.Equal(["foo's bar"], root.Select(x => x.Name));
+        Assert.Equal(["foo's bar/"], root.Select(x => x.Name));
 
         var foo = service.ListDirectory("foo's bar");
         Assert.NotNull(foo);
-        Assert.Equal(["テスト ñó. 1"], foo.Select(x => x.Name));
+        Assert.Equal(["テスト ñó. 1/"], foo.Select(x => x.Name));
 
-        var test = service.ListDirectory("テスト ñó. 1");
+        var test = service.ListDirectory("foo's bar/テスト ñó. 1");
         Assert.NotNull(test);
-        Assert.Equal(["😝"], foo.Select(x => x.Name));
+        Assert.Equal(["😝"], test.Select(x => x.Name));
     }
 
     [Fact]
