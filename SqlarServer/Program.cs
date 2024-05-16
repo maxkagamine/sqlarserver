@@ -9,7 +9,8 @@ using SqlarServer.Services;
 
 static void Help()
 {
-    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 sqlarserver path/to/sqlite.db");
+    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 sqlarserver path/to/sqlite.db\n");
+    Console.Error.WriteLine(SqlarOptions.HelpText);
     Environment.Exit(1);
 }
 
