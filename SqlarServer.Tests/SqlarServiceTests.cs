@@ -3,6 +3,7 @@
 
 using System.Text;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlarServer.Models;
 using SqlarServer.Services;
@@ -74,7 +75,7 @@ public sealed class SqlarServiceTests : IDisposable
         }
 
         // Instantiate service
-        return new SqlarService(connection, Options.Create(options));
+        return new SqlarService(connection, Options.Create(options), NullLogger<SqlarService>.Instance);
     }
 
     public void Dispose() => connection.Dispose();

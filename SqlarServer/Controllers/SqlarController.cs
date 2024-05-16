@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using SqlarServer.Models;
 using SqlarServer.Services;
+using System.Diagnostics;
 
 namespace SqlarServer.Controllers;
 public class SqlarController : Controller
@@ -22,6 +23,8 @@ public class SqlarController : Controller
     [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Index(string path = "/")
     {
+        var sw = Stopwatch.StartNew();
+
         // Check if requesting a file and return the blob stream if so
         var stream = sqlarService.GetStream(path);
         if (stream is not null)
@@ -49,7 +52,7 @@ public class SqlarController : Controller
                 list.Insert(0, new("../", parentDirectory));
             }
 
-            var model = new IndexModel(path, count, list);
+            var model = new IndexModel(path, count, sw.Elapsed, list);
             return View(model);
         }
 
