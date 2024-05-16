@@ -11,7 +11,6 @@ public sealed class SqlarServiceTests : IDisposable
 {
     private static readonly SqlarOptions DefaultOptions = new()
     {
-        ArchivePath = "", // Not used here
         TableName = "sqlar",
         SizeFormat = SizeFormat.Binary,
         SortDirectoriesFirst = true,

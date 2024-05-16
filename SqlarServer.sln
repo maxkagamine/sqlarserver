@@ -4,7 +4,12 @@ VisualStudioVersion = 17.8.34309.116
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlarServer", "SqlarServer\SqlarServer.csproj", "{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlarServer.Tests", "SqlarServer.Tests\SqlarServer.Tests.csproj", "{E64B0A2E-E4EC-47C3-B9C0-D3F0E2C1E00B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlarServer.Tests", "SqlarServer.Tests\SqlarServer.Tests.csproj", "{E64B0A2E-E4EC-47C3-B9C0-D3F0E2C1E00B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C92A6755-6AA6-4034-BF4B-81ADAE063432}"
+	ProjectSection(SolutionItems) = preProject
+		Dockerfile = Dockerfile
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
