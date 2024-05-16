@@ -14,12 +14,14 @@ public class SqlarService : ISqlarService
 
     private readonly SqliteConnection connection;
     private readonly SqlarOptions options;
+    private readonly ILogger<SqlarService> logger;
     private readonly DirectoryEntryNameComparer comparer;
 
-    public SqlarService(SqliteConnection connection, IOptions<SqlarOptions> options)
+    public SqlarService(SqliteConnection connection, IOptions<SqlarOptions> options, ILogger<SqlarService> logger)
     {
         this.connection = connection;
         this.options = options.Value;
+        this.logger = logger;
 
         comparer = new() { SortDirectoriesFirst = options.Value.SortDirectoriesFirst };
     }
@@ -27,6 +29,7 @@ public class SqlarService : ISqlarService
     public IEnumerable<DirectoryEntry>? ListDirectory(string path)
     {
         path = NormalizePath(path, isDirectory: true);
+        using var _ = logger.BeginTimedOperation($"{nameof(ListDirectory)} {{Path}}", path);
 
         // Search the db for an explicit directory entry matching the given path, if present (as the directory may exist
         // but be empty), and any and all descendents (not only direct children, as its children may include implicit
@@ -102,7 +105,7 @@ public class SqlarService : ISqlarService
 
             if (!isDirectory)
             {
-                dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt32(2)).UtcDateTime;
+                dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(2)).UtcDateTime;
 
                 long size = reader.GetInt64(3);
                 formattedSize = options.SizeFormat switch
@@ -132,6 +135,7 @@ public class SqlarService : ISqlarService
         // and do that recursively until we either find a file/directory or run out of symlinks.
 
         path = NormalizePath(path, isDirectory: false);
+        using var _ = logger.BeginTimedOperation($"{nameof(GetStream)} {{Path}}", path);
 
         // Find row id
         using var sql = connection.CreateCommand();
