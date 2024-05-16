@@ -12,6 +12,8 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
+RUN apk add --no-cache tzdata
+
 USER app
 WORKDIR /srv
 EXPOSE 80
