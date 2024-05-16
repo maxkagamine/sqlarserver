@@ -7,7 +7,25 @@ using Microsoft.Extensions.Options;
 using SqlarServer.Models;
 using SqlarServer.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+static void Help()
+{
+    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 sqlarserver path/to/sqlite.db");
+    Environment.Exit(1);
+}
+
+if (args.Length != 1 || args[0] == "--help" || args[0] == "-h")
+{
+    Help();
+}
+
+if (!File.Exists(args[0]))
+{
+    Console.Error.WriteLine($"\u001b[31m\"{args[0]}\" does not exist.");
+    Console.Error.WriteLine($"Working directory is {Environment.CurrentDirectory}; is the volume mounted there?\u001b[m\n");
+    Help();
+}
+
+var builder = WebApplication.CreateSlimBuilder();
 
 builder.Services.AddControllersWithViews();
 
@@ -16,7 +34,7 @@ builder.Services.AddSingleton(serviceProvider =>
     var options = serviceProvider.GetRequiredService<IOptions<SqlarOptions>>().Value;
     var connectionString = new SqliteConnectionStringBuilder
     {
-        DataSource = options.ArchivePath,
+        DataSource = args[0],
         Mode = SqliteOpenMode.ReadOnly
     };
 
@@ -41,6 +59,8 @@ builder.Services.AddSingleton<IContentTypeProvider>(new FileExtensionContentType
 });
 
 var app = builder.Build();
+
+app.UseDeveloperExceptionPage();
 
 app.UseRouting();
 app.MapControllers();

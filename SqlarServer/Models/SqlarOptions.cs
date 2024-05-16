@@ -5,8 +5,6 @@ namespace SqlarServer.Models;
 
 public record SqlarOptions
 {
-    public required string ArchivePath { get; init; }
-
     public required string TableName { get; init; }
 
     public required SizeFormat SizeFormat { get; init; }
