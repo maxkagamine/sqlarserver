@@ -8,6 +8,9 @@ public record SqlarOptions
     public static readonly string HelpText = """
         Environment variables:
 
+        TZ                     Timezone for displaying date modified (default: UTC)
+                               See [3;34m]8;;https://w.wiki/4Jx\List of tz database time zones]8;;\[m
+
         TableName              Name of the sqlar table (default: sqlar)
 
         SizeFormat             Bytes = Display file sizes in bytes without formatting
