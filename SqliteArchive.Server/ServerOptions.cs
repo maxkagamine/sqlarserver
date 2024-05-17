@@ -1,9 +1,9 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-namespace SqlarServer.Models;
+namespace SqliteArchive.Server;
 
-public record SqlarOptions
+public record ServerOptions
 {
     public static readonly string HelpText = """
         Environment variables:

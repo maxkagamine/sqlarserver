@@ -2,9 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 
 using NaturalSort.Extension;
-using SqlarServer.Models;
 
-namespace SqlarServer.Services;
+namespace SqliteArchive.Helpers;
 
 public class DirectoryEntryNameComparer : IComparer<DirectoryEntry>
 {

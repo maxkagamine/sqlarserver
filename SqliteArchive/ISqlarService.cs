@@ -1,9 +1,8 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using SqlarServer.Models;
+namespace SqliteArchive;
 
-namespace SqlarServer.Services;
 public interface ISqlarService
 {
     /// <summary>

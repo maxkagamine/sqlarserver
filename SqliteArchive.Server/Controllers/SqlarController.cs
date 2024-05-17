@@ -3,11 +3,10 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
-using SqlarServer.Models;
-using SqlarServer.Services;
+using SqliteArchive.Server.Models;
 using System.Diagnostics;
 
-namespace SqlarServer.Controllers;
+namespace SqliteArchive.Server.Controllers;
 public class SqlarController : Controller
 {
     private readonly ISqlarService sqlarService;

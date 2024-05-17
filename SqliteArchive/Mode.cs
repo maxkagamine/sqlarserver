@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-namespace SqlarServer.Services;
+namespace SqliteArchive;
 
 /// <summary>
 /// Represents a Unix file mode.
@@ -12,13 +12,10 @@ namespace SqlarServer.Services;
 public readonly struct Mode
 {
     // https://github.com/torvalds/linux/blob/master/include/uapi/linux/stat.h
-    private const int S_IFMT  = 0b1111000000000000;
+    private const int S_IFMT = 0b1111000000000000;
     private const int S_IFDIR = 0b0100000000000000;
     private const int S_IFREG = 0b1000000000000000;
     private const int S_IFLNK = 0b1010000000000000;
-    private const int S_ISUID = 0b0000100000000000;
-    private const int S_ISGID = 0b0000010000000000;
-    private const int S_ISVTX = 0b0000001000000000;
 
     /// <summary>
     /// Represents a directory with 777 permissions.

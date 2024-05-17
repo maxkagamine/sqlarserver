@@ -1,9 +1,10 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
-namespace SqlarServer;
+namespace SqliteArchive.Helpers;
 
 public static class LoggerExtensions
 {
@@ -13,7 +14,7 @@ public static class LoggerExtensions
     public static IDisposable BeginTimedOperation(this ILogger logger, string message, params string[] args)
     {
         logger.LogInformation(message + ": Starting", args);
-        
+
         var sw = Stopwatch.StartNew();
 
         return new TimedOperation(() =>

@@ -1,12 +1,15 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using System.IO.Compression;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Options;
-using SqlarServer.Models;
+using Microsoft.Extensions.Logging;
+using SqliteArchive.Helpers;
+using System.IO.Compression;
 
-namespace SqlarServer.Services;
+namespace SqliteArchive;
+
+// TODO: Move back to web project as "IndexItemModel"
+public record DirectoryEntry(string Name, string Path, DateTime? DateModified = null, string? FormattedSize = null);
 
 public class SqlarService : ISqlarService
 {
@@ -16,17 +19,12 @@ public class SqlarService : ISqlarService
     private const int S_IFREG = 0x8000;
 
     private readonly SqliteConnection connection;
-    private readonly SqlarOptions options;
     private readonly ILogger<SqlarService> logger;
-    private readonly DirectoryEntryNameComparer comparer;
 
-    public SqlarService(SqliteConnection connection, IOptions<SqlarOptions> options, ILogger<SqlarService> logger)
+    public SqlarService(SqliteConnection connection, ILogger<SqlarService> logger)
     {
         this.connection = connection;
-        this.options = options.Value;
         this.logger = logger;
-
-        comparer = new() { SortDirectoriesFirst = options.Value.SortDirectoriesFirst };
     }
 
     public IEnumerable<DirectoryEntry>? ListDirectory(string path)
@@ -41,12 +39,12 @@ public class SqlarService : ISqlarService
 
         if (path == "/")
         {
-            sql.CommandText = $"select name, mode, mtime, sz from {options.TableName};";
+            sql.CommandText = $"select name, mode, mtime, sz from sqlar;";
         }
         else
         {
             sql.CommandText = $"""
-                select name, mode, mtime, sz from {options.TableName}
+                select name, mode, mtime, sz from sqlar
                 where
                     ((name =         $trimmedPath or
                       name =  '/' || $trimmedPath or
@@ -111,12 +109,13 @@ public class SqlarService : ISqlarService
                 dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(2)).UtcDateTime;
 
                 long size = reader.GetInt64(3);
-                formattedSize = options.SizeFormat switch
-                {
-                    SizeFormat.Binary => FileSizeFormatter.FormatBytes(size),
-                    SizeFormat.SI => FileSizeFormatter.FormatBytes(size, true),
-                    _ => size.ToString(),
-                };
+                formattedSize = size.ToString(); // TODO: SizeFormat as a parameter?
+                //formattedSize = options.SizeFormat switch
+                //{
+                //    SizeFormat.Binary => FileSizeFormatter.FormatBytes(size),
+                //    SizeFormat.SI => FileSizeFormatter.FormatBytes(size, true),
+                //    _ => size.ToString(),
+                //};
             }
 
             // Add to entries
@@ -124,7 +123,8 @@ public class SqlarService : ISqlarService
         }
 
         // Sort and return
-        return entries.Values.Order(comparer).ToList();
+        // TODO: SortDirectoriesFirst as a parameter?
+        return entries.Values/*.Order(comparer)*/.ToList();
     }
 
     public Stream? GetStream(string path)
@@ -143,7 +143,7 @@ public class SqlarService : ISqlarService
         // Find row id
         using var sql = connection.CreateCommand();
         sql.CommandText = $"""
-            select _rowid_, sz from {options.TableName}
+            select _rowid_, sz from sqlar
             where
                 (name =         $trimmedPath or
                  name =  '/' || $trimmedPath or
@@ -169,7 +169,7 @@ public class SqlarService : ISqlarService
         // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
         // [1]: https://github.com/dotnet/efcore/issues/24312
         // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
-        var blob = new SqliteBlob(connection, options.TableName, "data", rowid, readOnly: true);
+        var blob = new SqliteBlob(connection, "sqlar", "data", rowid, readOnly: true);
         return blob.Length == size ? blob : new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
     }
 

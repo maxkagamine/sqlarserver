@@ -1,7 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-namespace SqlarServer.Services;
+namespace SqliteArchive.Helpers;
 
 public static class FileSizeFormatter
 {
