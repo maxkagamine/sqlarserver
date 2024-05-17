@@ -1,16 +1,14 @@
-﻿using System.Text;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using SqlarServer.Models;
-using SqlarServer.Services;
+using SqliteArchive.Server;
+using System.Text;
 using Xunit;
 
-namespace SqlarServer.Tests;
+namespace SqliteArchive.Tests;
 
 public sealed class SqlarServiceTests : IDisposable
 {
-    private static readonly SqlarOptions DefaultOptions = new()
+    private static readonly ServerOptions DefaultOptions = new()
     {
         TableName = "sqlar",
         SizeFormat = SizeFormat.Binary,
@@ -32,7 +30,7 @@ public sealed class SqlarServiceTests : IDisposable
 
     private SqlarService CreateService(
         IEnumerable<(string Name, int Mode, DateTime DateModified, byte[] Data)> rows,
-        SqlarOptions? options = null)
+        ServerOptions? options = null)
     {
         options ??= DefaultOptions;
 
@@ -72,7 +70,7 @@ public sealed class SqlarServiceTests : IDisposable
         }
 
         // Instantiate service
-        return new SqlarService(connection, Options.Create(options), NullLogger<SqlarService>.Instance);
+        return new SqlarService(connection, NullLogger<SqlarService>.Instance);
     }
 
     public void Dispose() => connection.Dispose();
@@ -331,7 +329,7 @@ public sealed class SqlarServiceTests : IDisposable
         using var stream = service.GetStream("foo/bar.txt");
 
         Assert.NotNull(stream);
-        
+
         using var reader = new StreamReader(stream);
         var actual = reader.ReadToEnd();
 

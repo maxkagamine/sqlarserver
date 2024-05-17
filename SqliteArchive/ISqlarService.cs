@@ -1,6 +1,5 @@
-﻿using SqlarServer.Models;
+﻿namespace SqliteArchive;
 
-namespace SqlarServer.Services;
 public interface ISqlarService
 {
     /// <summary>
