@@ -18,10 +18,11 @@ public sealed class SqlarServiceTests : IDisposable
         SortDirectoriesFirst = true,
     };
 
-    // File modes. Can be shown with `stat --format=%f`. Only the S_IFREG & S_IFDIR bits are actually relevant here:
+    // File modes. Can be shown with `stat --format=%f`. Only the S_IFMT bits are actually relevant here:
     // https://github.com/torvalds/linux/blob/master/include/uapi/linux/stat.h
     private const int Directory = 0x41ff;
     private const int RegularFile = 0x81a4;
+    private const int Symlink = 0xa1ff;
 
     private readonly SqliteConnection connection;
 
@@ -446,5 +447,79 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(root);
         Assert.Equal(["blah"], root.Select(x => x.Name));
+    }
+
+    [Fact]
+    public void ResolveSymlink_HandlesSimpleFileSymlinks()
+    {
+        var service = CreateService([
+            ("a/b/relative", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("../thing1")),
+            ("a/b/absolute", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X/thing2")),
+        ]);
+
+        // This is the case where only the last segment is a symlink
+        Assert.Equal("/a/thing1", service.ResolveSymlink("/a/b/relative"));
+        Assert.Equal("/X/thing2", service.ResolveSymlink("/a/b/absolute"));
+    }
+
+    [Fact]
+    public void ResolveSymlink_HandlesSimpleDirectorySymlinks()
+    {
+        var service = CreateService([
+            ("a/b/relative", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("../thing1")),
+            ("a/b/absolute", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X/thing2")),
+        ]);
+
+        // This tests that it correctly rewrites the part of the path that's linked to another dir
+        Assert.Equal("/a/thing1/c/d", service.ResolveSymlink("/a/b/relative/c/d"));
+        Assert.Equal("/X/thing2/c/d", service.ResolveSymlink("/a/b/absolute/c/d"));
+    }
+
+    [Fact]
+    public void ResolveSymlink_HandlesComplicatedSymlinks()
+    {
+        var service = CreateService([
+            ("a/b", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("B2")),
+            ("a/B2", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/A2")),
+            ("A2", Directory, DateTime.Now, Encoding.UTF8.GetBytes("decoy!")),
+            ("A2/c", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("./c2/c3/"))
+        ]);
+
+        // (╯°□°)╯︵ ┻━┻
+        Assert.Equal("/A2/c2/c3/d", service.ResolveSymlink("/a/b/c/d"));
+    }
+
+    [Fact]
+    public void ResolveSymlink_ThrowsIfRecursive()
+    {
+        var service = CreateService([
+            ("a/b", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X")),
+            ("X/c", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/a/b/Y")),
+            ("X/Y/d", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/a/b/Z")),
+            ("X/Z", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("Y/d"))
+        ]);
+
+        // Segments repeat but not recursive: /a/b/c -> /X/c -> /a/b/Y -> /X/Y
+        Assert.Equal("/X/Y", service.ResolveSymlink("/a/b/c"));
+
+        // Recursive: /a/b/c/d -> /X/c/d -> /a/b/Y/d -> ( /X/Y/d -> /a/b/Z -> /X/Z -> /X/Y/d )
+        Assert.Throws<RecursiveSymlinkException>(
+            () => service.ResolveSymlink("/a/b/c/d"));
+    }
+
+    [Fact]
+    public void ResolveSymlink_ThrowsIfSelfReferential()
+    {
+        var service = CreateService([
+            ("foo/self", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("self")),
+            ("foo/parent", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("."))
+        ]);
+
+        // Not self-referencing: /foo/parent/parent -> /foo/parent -> /foo
+        Assert.Equal("/foo", service.ResolveSymlink("/foo/parent/parent"));
+
+        // Self-referencing: /foo/self -> /foo/self -> /foo/self -> ...
+        Assert.Throws<RecursiveSymlinkException>(
+            () => service.ResolveSymlink("/foo/self"));
     }
 }

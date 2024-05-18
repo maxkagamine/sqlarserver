@@ -194,4 +194,12 @@ public class SqlarService : ISqlarService
 
         return str;
     }
+
+    public string ResolveSymlink(string path)
+    {
+        throw new NotImplementedException();
+    }
 }
+
+public class RecursiveSymlinkException(string path) : Exception($"A recursive symlink was detected at \"{path}\".")
+{ }

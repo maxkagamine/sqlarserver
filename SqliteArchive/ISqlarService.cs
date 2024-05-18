@@ -41,4 +41,13 @@ public interface ISqlarService
     /// <param name="path">The path to normalize.</param>
     /// <param name="isDirectory">Whether this path is of a directory.</param>
     string NormalizePath(string path, bool isDirectory);
+
+    /// <summary>
+    /// Recursively resolves symlinks in <paramref name="path"/>.
+    /// </summary>
+    /// <param name="path">The path to resolve.</param>
+    /// <returns>The path after resolving all symlinks. Note that the path may not actually exist and is not normalized
+    /// with respect to trailing slash.</returns>
+    /// <exception cref="RecursiveSymlinkException"/>
+    string ResolveSymlink(string path);
 }
