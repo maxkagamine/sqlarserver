@@ -23,7 +23,7 @@ public class SqlarService : ISqlarService
     private readonly SqliteConnection connection;
     private readonly ILogger<SqlarService> logger;
 
-    private readonly DirectoryNode root = new("", Mode.Directory);
+    private readonly DirectoryNode root = new("", Mode.Directory, default, null);
 
     public SqlarService(SqliteConnection connection, ILogger<SqlarService> logger)
     {
@@ -58,15 +58,12 @@ public class SqlarService : ISqlarService
             string name = path[^1];
             Node? node = parent.FindChild(name);
 
-            if (node is DirectoryNode existingDirectory && mode.IsDirectory)
+            if (node is DirectoryNode { IsImplicit: true } existingDirectory && mode.IsDirectory)
             {
-                // Update the directory's metadata, as it may have been created implicitly
-                //
-                // TODO: Should we display modified date & size for directories? Could display total size instead of "4
-                // KiB". Symlinks also have an mtime separate from their targets (and a size, which is just the length
-                // of the target string), though maybe we should dereference symlinks like `ls -L`. Should add a check
-                // here if the directory was actually created implicitly, or log a warning if duplicate.
+                // Update the directory's metadata
                 existingDirectory.Mode = mode;
+                existingDirectory.DateModified = dateModified;
+                existingDirectory.IsImplicit = false;
                 continue;
             }
             
@@ -80,10 +77,10 @@ public class SqlarService : ISqlarService
             // Create the node
             node = mode switch
             {
-                { IsDirectory: true } => new DirectoryNode(name, mode, parent),
+                { IsDirectory: true } => new DirectoryNode(name, mode, dateModified, parent),
                 { IsRegularFile: true } => new FileNode(name, mode, parent, rowId, dateModified, size),
-                { IsSymbolicLink: true } => new SymbolicLinkNode(name, mode, parent, ReadSymlinkTarget(rowId)),
-                _ => new Node(name, mode, parent)
+                { IsSymbolicLink: true } => new SymbolicLinkNode(name, mode, dateModified, parent, ReadSymlinkTarget(rowId)),
+                _ => new Node(name, mode, dateModified, size, parent)
             };
 
             parent.AddChild(node);
@@ -122,7 +119,10 @@ public class SqlarService : ISqlarService
             }
             else if (node is null)
             {
-                directory = new DirectoryNode(segment, Mode.Directory, parent);
+                directory = new DirectoryNode(segment, Mode.Directory, default, parent)
+                {
+                    IsImplicit = true
+                };
 
                 parent.AddChild(directory);
                 parent = directory;

@@ -8,27 +8,16 @@ namespace SqliteArchive.Nodes;
 /// </summary>
 public class FileNode : Node
 {
-    internal FileNode(string name, Mode mode, Node parent, long rowId, DateTime dateModified, long size) : base(name, mode, parent)
+    internal FileNode(string name, Mode mode, Node parent, long rowId, DateTime dateModified, long size)
+        : base(name, mode, dateModified, size, parent)
     {
         RowId = rowId;
-        DateModified = dateModified;
-        Size = size;
     }
 
     /// <summary>
     /// Table rowid for efficient blob retreival.
     /// </summary>
     public long RowId { get; }
-
-    /// <summary>
-    /// The file's mtime as a UTC date.
-    /// </summary>
-    public DateTime DateModified { get; }
-
-    /// <summary>
-    /// The file size.
-    /// </summary>
-    public long Size { get; }
 
     public override bool IsDirectory => false;
 

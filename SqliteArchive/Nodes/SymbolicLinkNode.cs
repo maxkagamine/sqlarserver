@@ -1,6 +1,8 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using System.Text;
+
 namespace SqliteArchive.Nodes;
 
 /// <summary>
@@ -8,7 +10,8 @@ namespace SqliteArchive.Nodes;
 /// </summary>
 public class SymbolicLinkNode : Node
 {
-    internal SymbolicLinkNode(string name, Mode mode, Node parent, string target) : base(name, mode, parent)
+    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, Node parent, string target)
+        : base(name, mode, dateModified, size: Encoding.UTF8.GetByteCount(target), parent)
     {
         Target = target;
     }

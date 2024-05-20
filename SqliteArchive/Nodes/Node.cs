@@ -13,10 +13,12 @@ public class Node
 {
     private Mode mode;
 
-    internal Node(string name, Mode mode, Node? parent)
+    internal Node(string name, Mode mode, DateTime dateModified, long size, Node? parent)
     {
         Name = name;
         Mode = mode;
+        DateModified = dateModified;
+        Size = size;
         Parent = parent;
     }
 
@@ -46,6 +48,16 @@ public class Node
             mode = value;
         }
     }
+
+    /// <summary>
+    /// The modified time as a UTC date.
+    /// </summary>
+    public virtual DateTime DateModified { get; internal set; }
+
+    /// <summary>
+    /// The file size in bytes.
+    /// </summary>
+    public long Size { get; }
 
     /// <summary>
     /// The parent node, or <see langword="null"/> if the root node.
