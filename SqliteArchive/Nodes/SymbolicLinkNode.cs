@@ -1,11 +1,14 @@
-﻿namespace SqliteArchive.Nodes;
+﻿using System.Text;
+
+namespace SqliteArchive.Nodes;
 
 /// <summary>
 /// Represents a symlink in the Sqlar virtual filesystem.
 /// </summary>
 public class SymbolicLinkNode : Node
 {
-    internal SymbolicLinkNode(string name, Mode mode, Node parent, string target) : base(name, mode, parent)
+    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, Node parent, string target)
+        : base(name, mode, dateModified, size: Encoding.UTF8.GetByteCount(target), parent)
     {
         Target = target;
     }
