@@ -4,6 +4,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using SqliteArchive.Helpers;
+using SqliteArchive.Nodes;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 
 namespace SqliteArchive;
@@ -21,11 +23,140 @@ public class SqlarService : ISqlarService
     private readonly SqliteConnection connection;
     private readonly ILogger<SqlarService> logger;
 
+    private readonly DirectoryNode root = new("", Mode.Directory);
+
     public SqlarService(SqliteConnection connection, ILogger<SqlarService> logger)
     {
         this.connection = connection;
         this.logger = logger;
+
+        InitializeFileTree();
     }
+
+    private void InitializeFileTree()
+    {
+        using var sql = connection.CreateCommand();
+        sql.CommandText = $"select rowid, name, mode, mtime, sz from sqlar;";
+        using var reader = sql.ExecuteReader();
+
+        while (reader.Read())
+        {
+            long rowId = reader.GetInt64(0);
+            string[] path = SplitPath(reader.GetString(1));
+            Mode mode = reader.GetInt32(2);
+            DateTime dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(3)).UtcDateTime;
+            long size = reader.GetInt64(4);
+
+            // Find the containing directory in the tree, creating any necessary directories along the way
+            DirectoryNode? parent = GetOrCreateParentDirectory(path);
+            if (parent is null)
+            {
+                continue;
+            }
+
+            // Check if a node already exists
+            string name = path[^1];
+            Node? node = parent.FindChild(name);
+
+            if (node is DirectoryNode existingDirectory && mode.IsDirectory)
+            {
+                // Update the directory's metadata, as it may have been created implicitly
+                //
+                // TODO: Should we display modified date & size for directories? Could display total size instead of "4
+                // KiB". Symlinks also have an mtime separate from their targets (and a size, which is just the length
+                // of the target string), though maybe we should dereference symlinks like `ls -L`. Should add a check
+                // here if the directory was actually created implicitly, or log a warning if duplicate.
+                existingDirectory.Mode = mode;
+                continue;
+            }
+            
+            if (node is not null)
+            {
+                // Duplicate entries
+                logger.LogWarning("Path \"{Path}\" exists in the archive multiple times.", JoinPath(path));
+                continue;
+            }
+
+            // Create the node
+            node = mode switch
+            {
+                { IsDirectory: true } => new DirectoryNode(name, mode, parent),
+                { IsRegularFile: true } => new FileNode(name, mode, parent, rowId, dateModified, size),
+                { IsSymbolicLink: true } => new SymbolicLinkNode(name, mode, parent, ReadSymlinkTarget(rowId)),
+                _ => new Node(name, mode, parent)
+            };
+
+            parent.AddChild(node);
+        }
+
+        // TODO: Find symlink target nodes now that we have a complete tree
+    }
+
+    /// <summary>
+    /// Finds <paramref name="path"/>'s parent directory in the tree, creating any necessary directories along the way.
+    /// </summary>
+    /// <remarks>
+    /// Although the sqlite3 CLI creates explicit directory entries, an archive created programmatically may contain
+    /// only files, in which case the folder hierarchy is created implicitly a la cloud storage.
+    /// </remarks>
+    /// <param name="path">The path whose parent directory to return.</param>
+    /// <returns>The <see cref="DirectoryNode"/> that should contain <paramref name="path"/>, or <see langword="null"/>
+    /// if <paramref name="path"/> is empty or contains an invalid directory path.</returns>
+    private DirectoryNode? GetOrCreateParentDirectory(string[] path)
+    {
+        if (path.Length == 0)
+        {
+            // Archive contains a directory entry for the root itself, which we'll ignore
+            return null;
+        }
+
+        DirectoryNode parent = root;
+
+        foreach (string segment in path[..^1])
+        {
+            var node = parent.FindChild(segment);
+
+            if (node is DirectoryNode directory)
+            {
+                parent = directory;
+            }
+            else if (node is null)
+            {
+                directory = new DirectoryNode(segment, Mode.Directory, parent);
+
+                parent.AddChild(directory);
+                parent = directory;
+            }
+            else
+            {
+                // Illogical archive
+                logger.LogWarning("Path \"{Path}\" exists in the archive, but \"{Ancestor}\" also exists and is not a directory.",
+                    JoinPath(path), node.Path);
+
+                return null;
+            }
+        }
+
+        return parent;
+    }
+
+    private static string[] SplitPath(string path)
+    {
+        if (path is "" or ".")
+        {
+            return [];
+        }
+
+        if (path.StartsWith("./"))
+        {
+            path = path[2..];
+        }
+
+        return path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static string JoinPath(string[] path)
+        => $"/{string.Join('/', path)}";
 
     public IEnumerable<DirectoryEntry>? ListDirectory(string path)
     {
@@ -163,14 +294,37 @@ public class SqlarService : ISqlarService
         long rowid = reader.GetInt64(0);
         long size = reader.GetInt64(1);
 
-        // Return the blob if found, decompressing if necessary[0]. This approach avoids unnecessary memory
-        // allocation[1]; however, not using sqlar_uncompress[2] means this will break if another compression algorithm
+        return GetStream(rowid, size);
+    }
+
+    /// <summary>
+    /// Gets the uncompressed data stream for the given row.
+    /// </summary>
+    /// <param name="rowId">The row id.</param>
+    /// <param name="size">The uncompressed size, or -1 if a symlink.</param>
+    private Stream GetStream(long rowId, long size)
+    {
+        // Return the blob, decompressing if necessary[0]. This approach avoids unnecessary memory allocation compared
+        // to a query[1]; however, not using sqlar_uncompress[2] means this will break if another compression algorithm
         // is added in the future. Unfortunately the nuget package doesn't seem to include the sqlar extension, anyway.
         // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
         // [1]: https://github.com/dotnet/efcore/issues/24312
         // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
-        var blob = new SqliteBlob(connection, "sqlar", "data", rowid, readOnly: true);
-        return blob.Length == size ? blob : new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
+        return size < 0 || blob.Length == size ? blob :
+            new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+    }
+
+    /// <summary>
+    /// Reads a symlink's target from its blob stream.
+    /// </summary>
+    /// <param name="rowId">The symlink row id.</param>
+    private string ReadSymlinkTarget(long rowId)
+    {
+        using var stream = GetStream(rowId, size: -1);
+        using var reader = new StreamReader(stream);
+
+        return reader.ReadToEnd();
     }
 
     public string NormalizePath(string path, bool isDirectory)

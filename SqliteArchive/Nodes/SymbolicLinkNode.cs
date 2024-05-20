@@ -8,15 +8,20 @@ namespace SqliteArchive.Nodes;
 /// </summary>
 public class SymbolicLinkNode : Node
 {
+    internal SymbolicLinkNode(string name, Mode mode, Node parent, string target) : base(name, mode, parent)
+    {
+        Target = target;
+    }
+
     /// <summary>
     /// The raw target string.
     /// </summary>
-    public required string Target { get; set; }
+    public string Target { get; }
 
     /// <summary>
     /// The symlink's target node, if successfully resolved.
     /// </summary>
-    public Node? TargetNode { get; set; }
+    public Node? TargetNode { get; internal set; }
 
     /// <summary>
     /// Whether this node is a broken symlink (target does not exist).
