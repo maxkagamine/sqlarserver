@@ -16,6 +16,7 @@ public class Node
     internal Node(string name, Mode mode, DateTime dateModified, long size, Node? parent)
     {
         Name = name;
+        Path = $"{parent?.Path}/{Name}";
         Mode = mode;
         DateModified = dateModified;
         Size = size;
@@ -30,7 +31,7 @@ public class Node
     /// <summary>
     /// The node's absolute path.
     /// </summary>
-    public string Path => $"{Parent?.Path}/{Name}";
+    public string Path { get; }
 
     /// <summary>
     /// The Unix file mode.
