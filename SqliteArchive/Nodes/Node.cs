@@ -13,13 +13,14 @@ public class Node
 {
     private Mode mode;
 
-    internal Node(string name, Mode mode, DateTime dateModified, long size, Node? parent)
+    internal Node(string name, Mode mode, DateTime dateModified, long size, long compressedSize, Node? parent)
     {
         Name = name;
         Path = parent?.Path + name;
         Mode = mode;
         DateModified = dateModified;
         Size = size;
+        CompressedSize = compressedSize;
         Parent = parent;
     }
 
@@ -63,6 +64,16 @@ public class Node
     /// The file size in bytes.
     /// </summary>
     public long Size { get; }
+
+    /// <summary>
+    /// The size of the stored blob in bytes. Data is stored uncompressed if equal to <see cref="Size"/>.
+    /// </summary>
+    public long CompressedSize { get; }
+
+    /// <summary>
+    /// Compression ratio. Zero if uncompressed (or no data); close to 1 if highly compressed.
+    /// </summary>
+    public double CompressionRatio => Size == 0 ? 0 : 1 - ((double)CompressedSize / Size);
 
     /// <summary>
     /// The parent node, or <see langword="null"/> if the root node.

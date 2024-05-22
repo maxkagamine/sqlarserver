@@ -97,7 +97,7 @@ public class SqlarService : ISqlarService
         using var _ = logger.BeginTimedOperation(nameof(InitializeFileTree));
 
         using var sql = connection.CreateCommand();
-        sql.CommandText = "select rowid, name, mode, mtime, sz from sqlar;";
+        sql.CommandText = "select rowid, name, mode, mtime, sz, length(data) from sqlar;";
         using var reader = sql.ExecuteReader();
 
         List<SymbolicLinkNode> symlinks = [];
@@ -109,6 +109,7 @@ public class SqlarService : ISqlarService
             Mode mode = reader.GetInt32(2);
             DateTime dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(3)).UtcDateTime;
             long size = reader.GetInt64(4);
+            long compressedSize = reader.IsDBNull(5) ? 0 : reader.GetInt64(5);
 
             // If the sqlite3 cli was invoked with "." it'll contain a row for the root "." itself which we can ignore
             if (path.IsRoot)
@@ -147,9 +148,9 @@ public class SqlarService : ISqlarService
             node = mode switch
             {
                 { IsDirectory: true } => new DirectoryNode(name, mode, dateModified, parent),
-                { IsRegularFile: true } => new FileNode(name, mode, parent, rowId, dateModified, size),
-                { IsSymbolicLink: true } => new SymbolicLinkNode(name, mode, dateModified, parent, ReadSymlinkTarget(rowId)),
-                _ => new Node(name, mode, dateModified, size, parent)
+                { IsRegularFile: true } => new FileNode(name, mode, dateModified, size, compressedSize, parent, rowId),
+                { IsSymbolicLink: true } => new SymbolicLinkNode(name, mode, dateModified, compressedSize, parent, ReadSymlinkTarget(rowId)),
+                _ => new Node(name, mode, dateModified, size, compressedSize, parent)
             };
 
             if (node is SymbolicLinkNode symlink)

@@ -13,8 +13,8 @@ public class SymbolicLinkNode : Node
 {
     private Node? targetNode;
 
-    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, Node parent, string target)
-        : base(name, mode, dateModified, size: Encoding.UTF8.GetByteCount(target), parent)
+    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, long compressedSize, Node parent, string target)
+        : base(name, mode, dateModified, size: compressedSize /* Stored uncompressed, but sz is -1 */, compressedSize, parent)
     {
         Target = target;
     }

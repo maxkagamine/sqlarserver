@@ -61,6 +61,13 @@ public class SqlarController : Controller
                     Path: new Path(path, n.Name).ToString(trailingSlash: n.IsDirectory),
                     DateModified: n.DateModified,
                     FormattedSize: FormatSize(n.Size),
+                    Tooltip: $"""
+                        {n.Path}
+
+                        Original size: {FormatSize(n.Size, pad: false)} ({n.Size:N0} bytes)
+                        Compressed size: {FormatSize(n.CompressedSize, pad: false)} ({n.CompressedSize:N0} bytes) ({n.CompressionRatio:P0})
+                        Last modified: {n.DateModified.ToLocalTime():F}
+                        """,
                     Mode: n.Mode))
                 .ToList();
 
@@ -72,7 +79,13 @@ public class SqlarController : Controller
                 entries.Insert(0, new("../", path.Parent.ToString(true)));
             }
 
-            var model = new IndexModel(path.ToString(true), count, entries);
+            var model = new IndexModel(
+                Path: path.ToString(true),
+                Count: count,
+                TotalSize: FormatSize(directory.TotalSize, pad: false),
+                CompressedSize: FormatSize(directory.TotalCompressedSize, pad: false),
+                Ratio: directory.TotalCompressionRatio,
+                entries);
             return View(model);
         }
 
@@ -88,10 +101,10 @@ public class SqlarController : Controller
         return NotFound();
     }
 
-    private string FormatSize(long size) => options.SizeFormat switch
+    private string FormatSize(long size, bool pad = true) => options.SizeFormat switch
     {
-        SizeFormat.Binary => FileSizeFormatter.FormatBytes(size).PadLeft("1.99 GiB".Length),
-        SizeFormat.SI => FileSizeFormatter.FormatBytes(size, true).PadLeft("1.99 GB".Length),
+        SizeFormat.Binary => FileSizeFormatter.FormatBytes(size).PadLeft(pad ? "1.99 GiB".Length : 0),
+        SizeFormat.SI => FileSizeFormatter.FormatBytes(size, true).PadLeft(pad ? "1.99 GB".Length : 0),
         _ => size.ToString()
     };
 }
