@@ -4,13 +4,13 @@
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
-using SqlarServer.Models;
-using SqlarServer.Services;
+using SqliteArchive;
+using SqliteArchive.Server;
 
 static void Help()
 {
-    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 sqlarserver path/to/sqlite.db\n");
-    Console.Error.WriteLine(SqlarOptions.HelpText);
+    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 SqliteArchive.Server path/to/sqlite.db\n");
+    Console.Error.WriteLine(ServerOptions.HelpText);
     Environment.Exit(1);
 }
 
@@ -32,7 +32,7 @@ builder.Services.AddControllersWithViews();
 
 builder.Services.AddSingleton(serviceProvider =>
 {
-    var options = serviceProvider.GetRequiredService<IOptions<SqlarOptions>>().Value;
+    var options = serviceProvider.GetRequiredService<IOptions<ServerOptions>>().Value;
     var connectionString = new SqliteConnectionStringBuilder
     {
         DataSource = args[0],
@@ -45,7 +45,7 @@ builder.Services.AddSingleton(serviceProvider =>
     return connection;
 });
 
-builder.Services.AddOptions<SqlarOptions>().BindConfiguration("");
+builder.Services.AddOptions<ServerOptions>().BindConfiguration("");
 builder.Services.AddSingleton<ISqlarService, SqlarService>();
 
 builder.Services.AddSingleton<IContentTypeProvider>(new FileExtensionContentTypeProvider()

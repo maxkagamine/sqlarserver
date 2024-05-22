@@ -2,10 +2,10 @@
 // Licensed under the Apache License, Version 2.0
 
 using FluentAssertions;
-using SqlarServer.Services;
+using SqliteArchive.Helpers;
 using Xunit;
 
-namespace SqlarServer.Tests;
+namespace SqliteArchive.Tests;
 
 public class FileSizeFormatterTests
 {
