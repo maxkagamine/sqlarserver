@@ -3,6 +3,9 @@
   <head>
     <title>@ViewBag.Title</title>
     <style>
+      a:not(:active) {
+        color: #00e;
+      }
       table {
         font-family: monospace;
         margin: 1em 0;
@@ -10,6 +13,16 @@
       }
       td + td {
         padding-left: 3ch;
+      }
+      @@media (prefers-color-scheme: dark) {
+        html {
+          color-scheme: dark;
+          background: #181a1b;
+          color: #e8e6e3;
+        }
+        a:not(:active) {
+          color: #3391ff;
+        }
       }
     </style>
   </head>
