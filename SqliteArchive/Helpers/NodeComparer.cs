@@ -1,14 +1,15 @@
 ﻿using NaturalSort.Extension;
+using SqliteArchive.Nodes;
 
 namespace SqliteArchive.Helpers;
 
-public class DirectoryEntryNameComparer : IComparer<DirectoryEntry>
+public class NodeComparer : IComparer<Node>
 {
     private static readonly NaturalSortComparer naturalSortComparer = new(StringComparison.OrdinalIgnoreCase);
 
     public bool SortDirectoriesFirst { get; set; } = true;
 
-    public int Compare(DirectoryEntry? x, DirectoryEntry? y)
+    public int Compare(Node? x, Node? y)
     {
         if (x is null)
         {
@@ -22,12 +23,12 @@ public class DirectoryEntryNameComparer : IComparer<DirectoryEntry>
 
         if (SortDirectoriesFirst)
         {
-            if (x.Name.EndsWith('/') && !y.Name.EndsWith('/'))
+            if (x.IsDirectory && !y.IsDirectory)
             {
                 return -1;
             }
 
-            if (y.Name.EndsWith('/') && !x.Name.EndsWith('/'))
+            if (y.IsDirectory && !x.IsDirectory)
             {
                 return 1;
             }
