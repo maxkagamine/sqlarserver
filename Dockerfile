@@ -12,7 +12,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata icu-libs
 
 USER app
 WORKDIR /srv
@@ -20,6 +20,8 @@ EXPOSE 80
 
 ENV ASPNETCORE_CONTENTROOT=/app
 ENV ASPNETCORE_HTTP_PORTS=80
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+ENV LANG=en_US
 
 COPY --from=build /app/publish /app
 
