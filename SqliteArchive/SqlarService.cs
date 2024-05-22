@@ -24,11 +24,11 @@ public class SqlarService : ISqlarService
         InitializeFileTree();
     }
 
-    public Node? FindPath(string path)
+    public Node? FindPath(Path path)
     {
         Node node = root;
 
-        foreach (string segment in SplitPath(path))
+        foreach (string segment in path)
         {
             if (node is not DirectoryNode directory)
             {
@@ -67,10 +67,16 @@ public class SqlarService : ISqlarService
         while (reader.Read())
         {
             long rowId = reader.GetInt64(0);
-            string[] path = SplitPath(reader.GetString(1));
+            Path path = new(reader.GetString(1));
             Mode mode = reader.GetInt32(2);
             DateTime dateModified = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(3)).UtcDateTime;
             long size = reader.GetInt64(4);
+
+            // If the sqlite3 cli was invoked with "." it'll contain a row for the root "." itself which we can ignore
+            if (path.IsRoot)
+            {
+                continue;
+            }
 
             // Find the containing directory in the tree, creating any necessary directories along the way
             DirectoryNode? parent = GetOrCreateParentDirectory(path);
@@ -80,7 +86,7 @@ public class SqlarService : ISqlarService
             }
 
             // Check if a node already exists
-            string name = path[^1];
+            string name = path.BaseName;
             Node? node = parent.FindChild(name);
 
             if (node is DirectoryNode { IsImplicit: true } existingDirectory && mode.IsDirectory)
@@ -95,7 +101,7 @@ public class SqlarService : ISqlarService
             if (node is not null)
             {
                 // Duplicate entries
-                logger.LogWarning("Path \"{Path}\" exists in the archive multiple times.", JoinPath(path));
+                logger.LogWarning("Path \"{Path}\" exists in the archive multiple times.", path);
                 continue;
             }
 
@@ -124,17 +130,16 @@ public class SqlarService : ISqlarService
     /// <param name="path">The path whose parent directory to return.</param>
     /// <returns>The <see cref="DirectoryNode"/> that should contain <paramref name="path"/>, or <see langword="null"/>
     /// if <paramref name="path"/> is empty or contains an invalid directory path.</returns>
-    private DirectoryNode? GetOrCreateParentDirectory(string[] path)
+    private DirectoryNode? GetOrCreateParentDirectory(Path path)
     {
-        if (path.Length == 0)
+        if (path.IsRoot)
         {
-            // Archive contains a directory entry for the root itself, which we'll ignore
             return null;
         }
 
         DirectoryNode parent = root;
 
-        foreach (string segment in path[..^1])
+        foreach (string segment in path.Parent)
         {
             var node = parent.FindChild(segment);
 
@@ -156,7 +161,7 @@ public class SqlarService : ISqlarService
             {
                 // Illogical archive
                 logger.LogWarning("Path \"{Path}\" exists in the archive, but \"{Ancestor}\" also exists and is not a directory.",
-                    JoinPath(path), node.Path);
+                    path, node.Path);
 
                 return null;
             }
@@ -184,7 +189,7 @@ public class SqlarService : ISqlarService
             return null;
         }
 
-        string absoluteTarget = new Uri(new Uri("file://" + symlink.Path), symlink.Target).AbsolutePath;
+        Path absoluteTarget = symlink.Parent!.Path + symlink.Target;
         
         symlink.ResolutionState = SymlinkResolutionState.StartedResolving;
         symlink.TargetNode = FindPath(absoluteTarget);
@@ -192,24 +197,6 @@ public class SqlarService : ISqlarService
 
         return symlink.TargetNode;
     }
-
-    private static string[] SplitPath(string path)
-    {
-        if (path is "" or ".")
-        {
-            return [];
-        }
-
-        if (path.StartsWith("./"))
-        {
-            path = path[2..];
-        }
-
-        return path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-    }
-
-    private static string JoinPath(string[] path)
-        => $"/{string.Join('/', path)}";
 
     public Stream GetStream(FileNode file) => GetStream(file.RowId, file.Size);
 

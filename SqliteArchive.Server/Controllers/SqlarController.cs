@@ -32,7 +32,7 @@ public class SqlarController : Controller
 
     [HttpGet("{**path}", Name = "Index")]
     [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
-    public IActionResult Index(string path = "")
+    public IActionResult Index(Path path)
     {
         Node? node = sqlarService.FindPath(path);
 
@@ -40,7 +40,7 @@ public class SqlarController : Controller
         {
             var stream = sqlarService.GetStream(file);
 
-            if (!contentTypeProvider.TryGetContentType(path, out string? contentType))
+            if (!contentTypeProvider.TryGetContentType(path.ToString(), out string? contentType))
             {
                 contentType = "application/octet-stream";
             }
@@ -50,13 +50,11 @@ public class SqlarController : Controller
 
         if (node is DirectoryNode directory)
         {
-            path = $"/{path.Trim('/')}/";
-
             var entries = directory.Children
                 .Order(comparer)
                 .Select(n => new DirectoryEntryModel(
-                    Name: FormatName(n),
-                    Path: CreatePath(n, path), // Node.Path is the "realpath", but we want to preserve symlinks
+                    Name: n.IsDirectory ? $"{n.Name}/" : n.Name,
+                    Path: new Path(path, n.Name).ToString(trailingSlash: n.IsDirectory),
                     DateModified: n.DateModified,
                     FormattedSize: FormatSize(n)))
                 .ToList();
@@ -64,22 +62,17 @@ public class SqlarController : Controller
             int count = entries.Count;
 
             // Add ".." link
-            if (directory.Parent is not null)
+            if (!path.IsRoot)
             {
-                string parentDirectory = path[..(path.LastIndexOf('/', path.Length - 2) + 1)];
-                entries.Insert(0, new("../", parentDirectory));
+                entries.Insert(0, new("../", path.Parent.ToString(true)));
             }
 
-            var model = new IndexModel(path, count, entries);
+            var model = new IndexModel(path.ToString(true), count, entries);
             return View(model);
         }
 
         return NotFound();
     }
-
-    private static string FormatName(Node node) => node.IsDirectory ? $"{node.Name}/" : node.Name;
-
-    private static string CreatePath(Node node, string basePath) => $"{basePath.TrimEnd('/')}/{FormatName(node)}";
 
     private string? FormatSize(Node node) => (node.IsDirectory, options.SizeFormat) switch
     {

@@ -25,7 +25,7 @@ public interface ISqlarService
     /// <param name="path">Path with or without leading slash.</param>
     /// <returns>A <see cref="DirectoryNode"/>, <see cref="FileNode"/>, or (as a fallback) <see cref="Node"/> if found;
     /// otherwise <see langword="null"/>.</returns>
-    Node? FindPath(string path);
+    Node? FindPath(Path path);
 
     /// <summary>
     /// Returns the uncompressed data stream for the given file.
