@@ -66,4 +66,7 @@ app.UseDeveloperExceptionPage();
 app.UseRouting();
 app.MapControllers();
 
+// Initialize file tree at startup
+app.Services.GetRequiredService<ISqlarService>();
+
 app.Run();
