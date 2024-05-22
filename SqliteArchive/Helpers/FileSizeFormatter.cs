@@ -1,4 +1,4 @@
-﻿namespace SqlarServer.Services;
+﻿namespace SqliteArchive.Helpers;
 
 public static class FileSizeFormatter
 {

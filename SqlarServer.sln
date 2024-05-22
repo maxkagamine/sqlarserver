@@ -2,9 +2,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34309.116
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlarServer", "SqlarServer\SqlarServer.csproj", "{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqliteArchive", "SqliteArchive\SqliteArchive.csproj", "{3766A98D-9522-47B5-9E5C-D84F3CBCD043}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlarServer.Tests", "SqlarServer.Tests\SqlarServer.Tests.csproj", "{E64B0A2E-E4EC-47C3-B9C0-D3F0E2C1E00B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqliteArchive.Server", "SqliteArchive.Server\SqliteArchive.Server.csproj", "{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqliteArchive.Tests", "SqliteArchive.Tests\SqliteArchive.Tests.csproj", "{E64B0A2E-E4EC-47C3-B9C0-D3F0E2C1E00B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C92A6755-6AA6-4034-BF4B-81ADAE063432}"
 	ProjectSection(SolutionItems) = preProject
@@ -17,6 +19,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3766A98D-9522-47B5-9E5C-D84F3CBCD043}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3766A98D-9522-47B5-9E5C-D84F3CBCD043}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3766A98D-9522-47B5-9E5C-D84F3CBCD043}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3766A98D-9522-47B5-9E5C-D84F3CBCD043}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0BCD867C-FB2A-46B1-9E03-7F7D50E8AF93}.Release|Any CPU.ActiveCfg = Release|Any CPU
