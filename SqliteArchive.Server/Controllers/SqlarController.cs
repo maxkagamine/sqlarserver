@@ -46,6 +46,11 @@ public class SqlarController : Controller
                 contentType = "application/octet-stream";
             }
 
+            if (!string.IsNullOrEmpty(options.Charset))
+            {
+                contentType += "; charset=" + options.Charset;
+            }
+
             return File(stream, contentType);
         }
 
