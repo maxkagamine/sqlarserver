@@ -10,9 +10,10 @@
     @foreach (var item in Model.Entries)
     {
         <tr>
-            <td><a asp-route="Index" asp-route-path="@item.Path">@item.Name</a></td>
+            <td>@item.Mode</td>
+            <td align="right">@item.FormattedSize</td>
             <td>@item.DateModified?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-            <td>@item.FormattedSize</td>
+            <td><a asp-route="Index" asp-route-path="@item.Path">@item.Name</a></td>
         </tr>
     }
 </table>
