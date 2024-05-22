@@ -15,16 +15,24 @@ public static class FileSizeFormatter
     const double Gi = 1024 * Mi;
     const double Ti = 1024 * Gi;
 
+    /// <summary>
+    /// Formats a number of bytes into either binary or SI units. Decimals are rounded off at three significant figures.
+    /// </summary>
+    /// <param name="bytes">The number of bytes to format.</param>
+    /// <param name="si">Whether to use SI units (KB, MB, GB, TB) instead of binary (KiB, MiB, GiB, TiB).</param>
+    /// <returns>The formatted string.</returns>
     public static string FormatBytes(long bytes, bool si = false) => ((double)bytes, si) switch
     {
-        ( >= 1023.995 * Gi, false) => $"{bytes / Ti:0.##} TiB",
-        ( >= 1023.995 * Mi, false) => $"{bytes / Gi:0.##} GiB",
-        ( >= 1023.5 * Ki, false) => $"{bytes / Mi:0.##} MiB",
-        ( >= Ki, false) => $"{bytes / Ki:0} KiB",
-        ( >= 999.995 * G, true) => $"{bytes / T:0.##} TB",
-        ( >= 999.995 * M, true) => $"{bytes / G:0.##} GB",
-        ( >= 999.5 * K, true) => $"{bytes / M:0.##} MB",
-        ( >= K, true) => $"{bytes / K:0} KB",
+        ( >= 1023.5 * Gi, false) => $"{Round(bytes / Ti)} TiB",
+        ( >= 1023.5 * Mi, false) => $"{Round(bytes / Gi)} GiB",
+        ( >= 1023.5 * Ki, false) => $"{Round(bytes / Mi)} MiB",
+        ( >= Ki, false) => $"{Round(bytes / Ki)} KiB",
+        ( >= 999.5 * G, true) => $"{Round(bytes / T)} TB",
+        ( >= 999.5 * M, true) => $"{Round(bytes / G)} GB",
+        ( >= 999.5 * K, true) => $"{Round(bytes / M)} MB",
+        ( >= K, true) => $"{Round(bytes / K)} KB",
         _ => $"{bytes} B"
     };
+
+    private static string Round(double num) => num.ToString(num < 100 ? "G3" : "F0");
 }
