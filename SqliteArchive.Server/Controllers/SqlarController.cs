@@ -4,8 +4,6 @@ using Microsoft.Extensions.Options;
 using SqliteArchive.Helpers;
 using SqliteArchive.Nodes;
 using SqliteArchive.Server.Models;
-using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace SqliteArchive.Server.Controllers;
 public class SqlarController : Controller
@@ -24,8 +22,8 @@ public class SqlarController : Controller
     {
         this.sqlarService = sqlarService;
         this.contentTypeProvider = contentTypeProvider;
-        this.logger = logger;
         this.options = options.Value;
+        this.logger = logger;
 
         comparer = new NodeComparer()
         {
@@ -59,7 +57,8 @@ public class SqlarController : Controller
                     Name: n.IsDirectory ? $"{n.Name}/" : n.Name,
                     Path: new Path(path, n.Name).ToString(trailingSlash: n.IsDirectory),
                     DateModified: n.DateModified,
-                    FormattedSize: FormatSize(n)))
+                    FormattedSize: FormatSize(n.Size),
+                    Mode: n.Mode))
                 .ToList();
 
             int count = entries.Count;
@@ -86,11 +85,10 @@ public class SqlarController : Controller
         return NotFound();
     }
 
-    private string? FormatSize(Node node) => (node.IsDirectory, options.SizeFormat) switch
+    private string FormatSize(long size) => options.SizeFormat switch
     {
-        (true, _) => null,
-        (_, SizeFormat.Binary) => FileSizeFormatter.FormatBytes(node.Size),
-        (_, SizeFormat.SI) => FileSizeFormatter.FormatBytes(node.Size, true),
-        _ => node.Size.ToString()
+        SizeFormat.Binary => FileSizeFormatter.FormatBytes(size).PadLeft("1.99 GiB".Length),
+        SizeFormat.SI => FileSizeFormatter.FormatBytes(size, true).PadLeft("1.99 GB".Length),
+        _ => size.ToString()
     };
 }
