@@ -3,7 +3,11 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Options;
+using SqliteArchive.Helpers;
+using SqliteArchive.Nodes;
 using SqliteArchive.Server.Models;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace SqliteArchive.Server.Controllers;
@@ -11,50 +15,77 @@ public class SqlarController : Controller
 {
     private readonly ISqlarService sqlarService;
     private readonly IContentTypeProvider contentTypeProvider;
+    private readonly ServerOptions options;
+    private readonly NodeComparer comparer;
 
-    public SqlarController(ISqlarService sqlarService, IContentTypeProvider contentTypeProvider)
+    public SqlarController(ISqlarService sqlarService, IContentTypeProvider contentTypeProvider, IOptions<ServerOptions> options)
     {
         this.sqlarService = sqlarService;
         this.contentTypeProvider = contentTypeProvider;
+        this.options = options.Value;
+
+        comparer = new NodeComparer()
+        {
+            SortDirectoriesFirst = options.Value.SortDirectoriesFirst
+        };
     }
 
     [HttpGet("{**path}", Name = "Index")]
     [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
-    public IActionResult Index(string path = "/")
+    public IActionResult Index(string path = "")
     {
-        var sw = Stopwatch.StartNew();
+        Node? node = sqlarService.FindPath(path);
 
-        // Check if requesting a file and return the blob stream if so
-        var stream = sqlarService.GetStream(path);
-        if (stream is not null)
+        if (node is FileNode file)
         {
+            var stream = sqlarService.GetStream(file);
+
             if (!contentTypeProvider.TryGetContentType(path, out string? contentType))
             {
                 contentType = "application/octet-stream";
             }
 
-            return new FileStreamResult(stream, contentType);
+            return File(stream, contentType);
         }
 
-        // See if it's a directory
-        var entries = sqlarService.ListDirectory(path);
-        if (entries is not null)
+        if (node is DirectoryNode directory)
         {
-            var list = entries.ToList();
-            int count = list.Count;
-            path = sqlarService.NormalizePath(path, isDirectory: true);
+            path = $"/{path.Trim('/')}/";
+
+            var entries = directory.Children
+                .Order(comparer)
+                .Select(n => new DirectoryEntryModel(
+                    Name: FormatName(n),
+                    Path: CreatePath(n, path), // Node.Path is the "realpath", but we want to preserve symlinks
+                    DateModified: n.DateModified,
+                    FormattedSize: FormatSize(n)))
+                .ToList();
+
+            int count = entries.Count;
 
             // Add ".." link
-            if (path != "/")
+            if (directory.Parent is not null)
             {
                 string parentDirectory = path[..(path.LastIndexOf('/', path.Length - 2) + 1)];
-                list.Insert(0, new("../", parentDirectory));
+                entries.Insert(0, new("../", parentDirectory));
             }
 
-            var model = new IndexModel(path, count, sw.Elapsed, list);
+            var model = new IndexModel(path, count, entries);
             return View(model);
         }
 
         return NotFound();
     }
+
+    private static string FormatName(Node node) => node.IsDirectory ? $"{node.Name}/" : node.Name;
+
+    private static string CreatePath(Node node, string basePath) => $"{basePath.TrimEnd('/')}/{FormatName(node)}";
+
+    private string? FormatSize(Node node) => (node.IsDirectory, options.SizeFormat) switch
+    {
+        (true, _) => null,
+        (_, SizeFormat.Binary) => FileSizeFormatter.FormatBytes(node.Size),
+        (_, SizeFormat.SI) => FileSizeFormatter.FormatBytes(node.Size, true),
+        _ => node.Size.ToString()
+    };
 }

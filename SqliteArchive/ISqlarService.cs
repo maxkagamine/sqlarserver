@@ -31,5 +31,5 @@ public interface ISqlarService
     /// Returns the uncompressed data stream for the given file.
     /// </summary>
     /// <param name="file">The file node.</param>
-    Stream? GetStream(FileNode file);
+    Stream GetStream(FileNode file);
 }
