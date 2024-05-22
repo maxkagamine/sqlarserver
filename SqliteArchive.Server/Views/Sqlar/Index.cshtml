@@ -9,7 +9,7 @@
 <table>
     @foreach (var item in Model.Entries)
     {
-        <tr>
+        <tr title="@item.Tooltip">
             <td>@item.Mode</td>
             <td align="right">@item.FormattedSize</td>
             <td>@item.DateModified?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
@@ -20,4 +20,8 @@
 
 <hr />
 
-<i>@Model.Count item@(Model.Count == 1 ? "" : "s").</i>
+<i>
+  @Model.Count item@(Model.Count == 1 ? "" : "s").
+  Total size: @Model.TotalSize.
+  Compressed size: @Model.CompressedSize (@Model.Ratio.ToString("P0")).
+</i>
