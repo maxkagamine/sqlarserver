@@ -11,6 +11,8 @@ namespace SqliteArchive.Nodes;
 /// </summary>
 public class SymbolicLinkNode : Node
 {
+    private Node? targetNode;
+
     internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, Node parent, string target)
         : base(name, mode, dateModified, size: Encoding.UTF8.GetByteCount(target), parent)
     {
@@ -23,10 +25,21 @@ public class SymbolicLinkNode : Node
     public string Target { get; }
 
     /// <summary>
-    /// The symlink's target node after following all symlinks, or <see langword="null"/> if the target does not exist
-    /// or is recursive.
+    /// The symlink's dereferenced target node, or <see langword="null"/> if the target does not exist or is recursive.
     /// </summary>
-    public Node? TargetNode { get; internal set; }
+    public Node? TargetNode
+    {
+        get => targetNode;
+        internal set
+        {
+            if (value is SymbolicLinkNode)
+            {
+                throw new ArgumentException($"Should not attempt to assign a {nameof(SymbolicLinkNode)} as a symlink's {nameof(TargetNode)}.");
+            }
+
+            targetNode = value;
+        }
+    }
 
     /// <summary>
     /// Whether this node is a broken symlink (target does not exist or is recursive).

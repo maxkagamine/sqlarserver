@@ -1,6 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -24,12 +25,21 @@ public class SqlarService : ISqlarService
         InitializeFileTree();
     }
 
-    public Node? FindPath(Path path)
+    public Node? FindPath(string path, bool dereference = false) => FindPath(new Path(path), dereference);
+
+    public Node? FindPath(Path path, bool dereference = false)
     {
         Node node = root;
 
         foreach (string segment in path)
         {
+            // Follow symlinks in the directory path
+            if (node is SymbolicLinkNode symlink && TryResolveSymlink(symlink, out Node? target))
+            {
+                node = target;
+            }
+
+            // Can't find the segment in the current node if it's not a directory
             if (node is not DirectoryNode directory)
             {
                 logger.LogDebug("Tried to find \"{Path}\" but \"{Ancestor}\" is not a directory.",
@@ -38,12 +48,8 @@ public class SqlarService : ISqlarService
                 return null;
             }
 
+            // Find the segment
             var child = directory.FindChild(segment);
-
-            if (child is SymbolicLinkNode symlink)
-            {
-                child = ResolveSymlink(symlink);
-            }
 
             if (child is null)
             {
@@ -53,16 +59,48 @@ public class SqlarService : ISqlarService
             node = child;
         }
 
+        // Dereference the final segment
+        if (dereference && node is SymbolicLinkNode finalSymlink &&
+            TryResolveSymlink(finalSymlink, out Node? finalTarget))
+        {
+            node = finalTarget;
+        }
+
         return node;
     }
 
+    public Stream GetStream(FileNode file) => GetStream(file.RowId, file.Size);
+
+    /// <summary>
+    /// Gets the uncompressed data stream for the given row.
+    /// </summary>
+    /// <param name="rowId">The row id.</param>
+    /// <param name="size">The uncompressed size, or -1 if a symlink.</param>
+    private Stream GetStream(long rowId, long size)
+    {
+        // Return the blob, decompressing if necessary[0]. This approach avoids unnecessary memory allocation compared
+        // to a query[1]; however, not using sqlar_uncompress[2] means this will break if another compression algorithm
+        // is added in the future. Unfortunately the nuget package doesn't seem to include the sqlar extension, anyway.
+        // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
+        // [1]: https://github.com/dotnet/efcore/issues/24312
+        // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
+        var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
+        return size < 0 || blob.Length == size ? blob :
+            new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+    }
+
+    /// <summary>
+    /// Reads the rows in the sqlar table and builds a virtual file tree.
+    /// </summary>
     private void InitializeFileTree()
     {
         using var _ = logger.BeginTimedOperation(nameof(InitializeFileTree));
 
         using var sql = connection.CreateCommand();
-        sql.CommandText = $"select rowid, name, mode, mtime, sz from sqlar;";
+        sql.CommandText = "select rowid, name, mode, mtime, sz from sqlar;";
         using var reader = sql.ExecuteReader();
+
+        List<SymbolicLinkNode> symlinks = [];
 
         while (reader.Read())
         {
@@ -114,10 +152,19 @@ public class SqlarService : ISqlarService
                 _ => new Node(name, mode, dateModified, size, parent)
             };
 
+            if (node is SymbolicLinkNode symlink)
+            {
+                symlinks.Add(symlink);
+            }
+
             parent.AddChild(node);
         }
 
-        // TODO: Find symlink target nodes now that we have a complete tree
+        // Eagerly resolve symlink targets
+        foreach (var symlink in symlinks)
+        {
+            TryResolveSymlink(symlink, out var _);
+        }
     }
 
     /// <summary>
@@ -175,47 +222,38 @@ public class SqlarService : ISqlarService
     /// cref="SymbolicLinkNode.TargetNode"/>.
     /// </summary>
     /// <param name="symlink">The symlink to resolve.</param>
-    /// <returns>The symlink's <see cref="SymbolicLinkNode.TargetNode"/>.</returns>
-    private Node? ResolveSymlink(SymbolicLinkNode symlink)
+    /// <param name="target">The symlink's <see cref="SymbolicLinkNode.TargetNode"/>.</param>
+    /// <returns>A boolean indicating whether the symlink target could be resolved.</returns>
+    private bool TryResolveSymlink(SymbolicLinkNode symlink, [NotNullWhen(true)] out Node? target)
     {
         if (symlink.ResolutionState == SymlinkResolutionState.Resolved)
         {
-            return symlink.TargetNode;
+            target = symlink.TargetNode;
+            return target is not null;
         }
 
         if (symlink.ResolutionState == SymlinkResolutionState.StartedResolving) // We've looped back
         {
             logger.LogWarning("Recursive symlink detected at \"{Path}\".", symlink.Path);
-            return null;
+
+            target = null;
+            return false;
         }
 
         Path absoluteTarget = symlink.Parent!.Path + symlink.Target;
-        
+
         symlink.ResolutionState = SymlinkResolutionState.StartedResolving;
-        symlink.TargetNode = FindPath(absoluteTarget);
+
+        target = FindPath(absoluteTarget, dereference: true);
+        if (target is SymbolicLinkNode)
+        {
+            // Dereferencing failed either due to broken symlink or recursion
+            target = null;
+        }
+        symlink.TargetNode = target;
         symlink.ResolutionState = SymlinkResolutionState.Resolved;
 
-        return symlink.TargetNode;
-    }
-
-    public Stream GetStream(FileNode file) => GetStream(file.RowId, file.Size);
-
-    /// <summary>
-    /// Gets the uncompressed data stream for the given row.
-    /// </summary>
-    /// <param name="rowId">The row id.</param>
-    /// <param name="size">The uncompressed size, or -1 if a symlink.</param>
-    private Stream GetStream(long rowId, long size)
-    {
-        // Return the blob, decompressing if necessary[0]. This approach avoids unnecessary memory allocation compared
-        // to a query[1]; however, not using sqlar_uncompress[2] means this will break if another compression algorithm
-        // is added in the future. Unfortunately the nuget package doesn't seem to include the sqlar extension, anyway.
-        // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
-        // [1]: https://github.com/dotnet/efcore/issues/24312
-        // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
-        var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
-        return size < 0 || blob.Length == size ? blob :
-            new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        return target is not null;
     }
 
     /// <summary>

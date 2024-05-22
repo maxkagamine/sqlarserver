@@ -16,12 +16,18 @@ public class SqlarController : Controller
     private readonly ISqlarService sqlarService;
     private readonly IContentTypeProvider contentTypeProvider;
     private readonly ServerOptions options;
+    private readonly ILogger<SqlarController> logger;
     private readonly NodeComparer comparer;
 
-    public SqlarController(ISqlarService sqlarService, IContentTypeProvider contentTypeProvider, IOptions<ServerOptions> options)
+    public SqlarController(
+        ISqlarService sqlarService,
+        IContentTypeProvider contentTypeProvider,
+        IOptions<ServerOptions> options,
+        ILogger<SqlarController> logger)
     {
         this.sqlarService = sqlarService;
         this.contentTypeProvider = contentTypeProvider;
+        this.logger = logger;
         this.options = options.Value;
 
         comparer = new NodeComparer()
@@ -30,11 +36,11 @@ public class SqlarController : Controller
         };
     }
 
-    [HttpGet("{**path}", Name = "Index")]
+    [HttpGet("{**path=/}", Name = "Index")]
     [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Index(Path path)
     {
-        Node? node = sqlarService.FindPath(path);
+        Node? node = sqlarService.FindPath(path, dereference: true);
 
         if (node is FileNode file)
         {
@@ -69,6 +75,15 @@ public class SqlarController : Controller
 
             var model = new IndexModel(path.ToString(true), count, entries);
             return View(model);
+        }
+
+        if (node is not null)
+        {
+            logger.LogInformation("\"{Path}\" is {Type}", path, node is SymbolicLinkNode ?
+                "a broken or recursive symlink" :
+                "an unsupported type (e.g. pipe, block device)");
+
+            return UnprocessableEntity();
         }
 
         return NotFound();

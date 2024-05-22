@@ -3,7 +3,7 @@
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
-using SqliteArchive.Server;
+using SqliteArchive.Nodes;
 using System.Text;
 using Xunit;
 
@@ -11,13 +11,6 @@ namespace SqliteArchive.Tests;
 
 public sealed class SqlarServiceTests : IDisposable
 {
-    private static readonly ServerOptions DefaultOptions = new()
-    {
-        TableName = "sqlar",
-        SizeFormat = SizeFormat.Binary,
-        SortDirectoriesFirst = true,
-    };
-
     // File modes. Can be shown with `stat --format=%f`. Only the S_IFMT bits are actually relevant here:
     // https://github.com/torvalds/linux/blob/master/include/uapi/linux/stat.h
     private const int Directory = 0x41ff;
@@ -34,14 +27,12 @@ public sealed class SqlarServiceTests : IDisposable
 
     private SqlarService CreateService(
         IEnumerable<(string Name, int Mode, DateTime DateModified, byte[] Data)> rows,
-        ServerOptions? options = null)
+        Action? beforeCreateService = null)
     {
-        options ??= DefaultOptions;
-
         // Create table
         using var createTable = connection.CreateCommand();
-        createTable.CommandText = $"""
-            CREATE TABLE IF NOT EXISTS {options.TableName} (
+        createTable.CommandText = """
+            CREATE TABLE IF NOT EXISTS sqlar (
               name TEXT PRIMARY KEY,  -- name of the file
               mode INT,               -- access permissions
               mtime INT,              -- last modification time
@@ -55,8 +46,8 @@ public sealed class SqlarServiceTests : IDisposable
         foreach (var (name, mode, mtime, data) in rows)
         {
             using var insert = connection.CreateCommand();
-            insert.CommandText = $"""
-                INSERT INTO {options.TableName}(name, mode, mtime, sz, data)
+            insert.CommandText = """
+                INSERT INTO sqlar(name, mode, mtime, sz, data)
                 VALUES($name, $mode, $mtime, $sz, zeroblob($sz));
                 SELECT last_insert_rowid();
                 """;
@@ -68,19 +59,20 @@ public sealed class SqlarServiceTests : IDisposable
 
             if (data.Length > 0)
             {
-                using var blob = new SqliteBlob(connection, options.TableName, "data", rowId);
+                using var blob = new SqliteBlob(connection, "sqlar", "data", rowId);
                 blob.Write(data);
             }
         }
 
         // Instantiate service
+        beforeCreateService?.Invoke();
         return new SqlarService(connection, NullLogger<SqlarService>.Instance);
     }
 
     public void Dispose() => connection.Dispose();
 
     [Fact]
-    public void ListDirectory_FindsExplicitDirectories()
+    public void ListsExplicitDirectories()
     {
         var service = CreateService([
             ("dir 1", Directory, DateTime.Now, []),
@@ -90,29 +82,29 @@ public sealed class SqlarServiceTests : IDisposable
             ("file 1", RegularFile, DateTime.Now, []),
         ]);
 
-        var root = service.ListDirectory("/");
+        var root = service.FindPath("/") as DirectoryNode;
 
         Assert.NotNull(root);
-        Assert.Collection(root,
-            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
-            x => Assert.Equal(("dir 2/", "/dir 2/"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path)));
+        Assert.Collection(root.Children,
+            x => Assert.Equal(("dir 1", "/dir 1"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("dir 2", "/dir 2"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path.ToString())));
 
-        var dir1 = service.ListDirectory("/dir 1");
+        var dir1 = service.FindPath("/dir 1") as DirectoryNode;
 
         Assert.NotNull(dir1);
-        Assert.Collection(dir1,
-            x => Assert.Equal(("child dir/", "/dir 1/child dir/"), (x.Name, x.Path)),
-            x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path)));
+        Assert.Collection(dir1.Children,
+            x => Assert.Equal(("child dir", "/dir 1/child dir"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path.ToString())));
 
-        var childDir = service.ListDirectory("/dir 1/child dir");
+        var childDir = service.FindPath("/dir 1/child dir") as DirectoryNode;
 
         Assert.NotNull(childDir);
-        Assert.Empty(childDir);
+        Assert.Empty(childDir.Children);
     }
 
     [Fact]
-    public void ListDirectory_FindsImplicitDirectories()
+    public void ListsImplicitDirectories()
     {
         var service = CreateService([
             ("dir 1/child dir/another file", RegularFile, DateTime.Now, []),
@@ -120,58 +112,48 @@ public sealed class SqlarServiceTests : IDisposable
             ("file 1", RegularFile, DateTime.Now, []),
         ]);
 
-        var root = service.ListDirectory("/");
+        var root = service.FindPath("/") as DirectoryNode;
 
         Assert.NotNull(root);
-        Assert.Collection(root,
-            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path)));
+        Assert.Collection(root.Children,
+            x => Assert.Equal(("dir 1", "/dir 1"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("file 1", "/file 1"), (x.Name, x.Path.ToString())));
 
-        var dir1 = service.ListDirectory("/dir 1");
+        var dir1 = service.FindPath("/dir 1") as DirectoryNode;
 
         Assert.NotNull(dir1);
-        Assert.Collection(dir1,
-            x => Assert.Equal(("child dir/", "/dir 1/child dir/"), (x.Name, x.Path)),
-            x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path)));
+        Assert.Collection(dir1.Children,
+            x => Assert.Equal(("child dir", "/dir 1/child dir"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("child file", "/dir 1/child file"), (x.Name, x.Path.ToString())));
     }
 
     [Fact]
-    public void ListDirectory_ReturnsNullIfNotFound()
+    public void FindPathReturnsNullIfNotFound()
     {
         var service = CreateService([
             ("foo", Directory, DateTime.Now, []),
         ]);
 
-        Assert.NotNull(service.ListDirectory("foo"));
-        Assert.Null(service.ListDirectory("bar"));
-    }
-
-    [Fact]
-    public void ListDirectory_ReturnsNullIfFile()
-    {
-        var service = CreateService([
-            ("foo", RegularFile, DateTime.Now, []),
-        ]);
-
-        Assert.Null(service.ListDirectory("foo"));
+        Assert.NotNull(service.FindPath("foo"));
+        Assert.Null(service.FindPath("bar"));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ListDirectory_EmptyArchiveIsEmpty(bool includeRootInArchive)
+    public void EmptyArchiveIsEmpty(bool includeRootInArchive)
     {
         var service = CreateService(includeRootInArchive ?
             [(".", Directory, DateTime.Now, [])] : // This can happen if running `sqlite3 -Acf <db> .` in an empty dir
             []);
-        var root = service.ListDirectory("/");
+        var root = service.FindPath("/") as DirectoryNode;
 
         Assert.NotNull(root);
-        Assert.Empty(root);
+        Assert.Empty(root.Children);
     }
 
     [Fact]
-    public void ListDirectory_FilesIncludeDateModified()
+    public void NodesIncludeDateModified()
     {
         var date = new DateTime(2024, 3, 9, 0, 0, 0, DateTimeKind.Utc);
 
@@ -179,93 +161,29 @@ public sealed class SqlarServiceTests : IDisposable
             ("foo", RegularFile, date, []),
         ]);
 
-        var root = service.ListDirectory("/");
-        var foo = root!.Single();
+        var foo = service.FindPath("foo") as FileNode;
 
+        Assert.NotNull(foo);
         Assert.Equal(date, foo.DateModified);
     }
 
-    [Theory]
-    [InlineData(SizeFormat.Bytes, "39000")]
-    [InlineData(SizeFormat.Binary, "38 KiB")]
-    [InlineData(SizeFormat.SI, "39 KB")]
-    public void ListDirectory_FilesIncludeFormattedSize(SizeFormat format, string expected)
-    {
-        const int Size = 39000;
-
-        var service = CreateService([
-            ("foo", RegularFile, DateTime.Now, Enumerable.Repeat<byte>(39, Size).ToArray()),
-        ], DefaultOptions with { SizeFormat = format });
-
-        var root = service.ListDirectory("/");
-        var foo = root!.Single();
-
-        Assert.Equal(expected, foo.FormattedSize);
-    }
-
     [Fact]
-    public void ListDirectory_DirectoriesLeaveMetadataNull()
+    public void FilesIncludeSize()
     {
+        int size = 39000;
+
         var service = CreateService([
-            ("foo", Directory, DateTime.Now, []),
-            ("bar/file", RegularFile, DateTime.Now, [39])
+            ("foo", RegularFile, DateTime.Now, Enumerable.Repeat<byte>(39, size).ToArray()),
         ]);
 
-        var root = service.ListDirectory("/");
+        var foo = service.FindPath("foo") as FileNode;
 
-        Assert.All(root!, x =>
-        {
-            Assert.Null(x.DateModified);
-            Assert.Null(x.FormattedSize);
-        });
+        Assert.NotNull(foo);
+        Assert.Equal(size, foo.Size);
     }
 
     [Fact]
-    public void ListDirectory_SortsDirectoriesFirst()
-    {
-        var service = CreateService([
-            ("a", Directory, DateTime.Now, []),
-            ("b", RegularFile, DateTime.Now, []),
-            ("c", Directory, DateTime.Now, []),
-            ("d", RegularFile, DateTime.Now, [])
-        ]);
-
-        Assert.Equal(["a/", "c/", "b", "d"],
-            service.ListDirectory("/")!.Select(x => x.Name));
-    }
-
-    [Fact]
-    public void ListDirectory_CanSortDirectoriesAlongsideFiles()
-    {
-        var service = CreateService([
-            ("a", Directory, DateTime.Now, []),
-            ("b", RegularFile, DateTime.Now, []),
-            ("c", Directory, DateTime.Now, []),
-            ("d", RegularFile, DateTime.Now, [])
-        ], DefaultOptions with
-        {
-            SortDirectoriesFirst = false
-        });
-
-        Assert.Equal(["a/", "b", "c/", "d"],
-            service.ListDirectory("/")!.Select(x => x.Name));
-    }
-
-    [Fact]
-    public void ListDirectory_SortsNumerically() // aka "version" or "natural" sort
-    {
-        var service = CreateService([
-            ("foo10.txt", RegularFile, DateTime.Now, []),
-            ("bar", RegularFile, DateTime.Now, []),
-            ("foo9.txt", RegularFile, DateTime.Now, []),
-        ]);
-
-        Assert.Equal(["bar", "foo9.txt", "foo10.txt"],
-            service.ListDirectory("/")!.Select(x => x.Name));
-    }
-
-    [Fact]
-    public void ListDirectory_IgnoresLeadingSlashOrDotSlash()
+    public void IgnoresLeadingSlashOrDotSlash()
     {
         var service = CreateService([
             ("dir 1/dir 2/file 1", RegularFile, DateTime.Now, []),
@@ -273,34 +191,23 @@ public sealed class SqlarServiceTests : IDisposable
             ("/file 3", RegularFile, DateTime.Now, []),
         ]);
 
-        var rootByEmptyString = service.ListDirectory("");
-        var rootBySlash = service.ListDirectory("/");
-        var rootByDotSlash = service.ListDirectory("./");
-        var rootByDot = service.ListDirectory(".");
+        var root = service.FindPath("/") as DirectoryNode;
 
-        Assert.NotNull(rootByEmptyString);
-        Assert.NotNull(rootBySlash);
-        Assert.NotNull(rootByDotSlash);
-        Assert.NotNull(rootByDot);
+        Assert.NotNull(root);
+        Assert.Collection(root.Children,
+            x => Assert.Equal(("dir 1", "/dir 1"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("file 3", "/file 3"), (x.Name, x.Path.ToString())));
 
-        Assert.Equal(rootByEmptyString, rootBySlash);
-        Assert.Equal(rootByEmptyString, rootByDotSlash);
-        Assert.Equal(rootByEmptyString, rootByDot);
-
-        Assert.Collection(rootBySlash,
-            x => Assert.Equal(("dir 1/", "/dir 1/"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 3", "/file 3"), (x.Name, x.Path)));
-
-        var dir2 = service.ListDirectory("dir 1/dir 2/");
+        var dir2 = service.FindPath("dir 1/dir 2") as DirectoryNode;
 
         Assert.NotNull(dir2);
-        Assert.Collection(dir2,
-            x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path)),
-            x => Assert.Equal(("file 2", "/dir 1/dir 2/file 2"), (x.Name, x.Path)));
+        Assert.Collection(dir2.Children,
+            x => Assert.Equal(("file 1", "/dir 1/dir 2/file 1"), (x.Name, x.Path.ToString())),
+            x => Assert.Equal(("file 2", "/dir 1/dir 2/file 2"), (x.Name, x.Path.ToString())));
     }
 
     [Fact]
-    public void ListDirectory_SupportsSpecialCharacters()
+    public void SupportsSpecialCharacters()
     {
         var service = CreateService([
             ("foo's bar", Directory, DateTime.Now, []),
@@ -308,21 +215,24 @@ public sealed class SqlarServiceTests : IDisposable
             ("foo's bar/テスト ñó. 1/😝", RegularFile, DateTime.Now, [])
         ]);
 
-        var root = service.ListDirectory("/");
+        var root = service.FindPath("/") as DirectoryNode;
         Assert.NotNull(root);
-        Assert.Equal(["foo's bar/"], root.Select(x => x.Name));
+        Assert.Equal(["foo's bar"], root.Children.Select(x => x.Name));
 
-        var foo = service.ListDirectory("foo's bar");
+        var foo = service.FindPath("foo's bar") as DirectoryNode;
         Assert.NotNull(foo);
-        Assert.Equal(["テスト ñó. 1/"], foo.Select(x => x.Name));
+        Assert.Equal(["テスト ñó. 1"], foo.Children.Select(x => x.Name));
 
-        var test = service.ListDirectory("foo's bar/テスト ñó. 1");
+        var test = service.FindPath("foo's bar/テスト ñó. 1") as DirectoryNode;
         Assert.NotNull(test);
-        Assert.Equal(["😝"], test.Select(x => x.Name));
+        Assert.Equal(["😝"], test.Children.Select(x => x.Name));
+
+        var smiley = service.FindPath("foo's bar/テスト ñó. 1/😝") as FileNode;
+        Assert.NotNull(smiley);
     }
 
     [Fact]
-    public void GetStream_ReturnsBlobStreamForFile()
+    public void GetStreamReturnsBlobStream()
     {
         var expected = "リンちゃんマジ天使";
 
@@ -330,10 +240,9 @@ public sealed class SqlarServiceTests : IDisposable
             ("foo/bar.txt", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes(expected))
         ]);
 
-        using var stream = service.GetStream("foo/bar.txt");
+        var node = Assert.IsType<FileNode>(service.FindPath("foo/bar.txt"));
 
-        Assert.NotNull(stream);
-
+        using var stream = service.GetStream(node);
         using var reader = new StreamReader(stream);
         var actual = reader.ReadToEnd();
 
@@ -341,156 +250,83 @@ public sealed class SqlarServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetStream_ReturnsNullIfNotFound()
+    public void GetStreamUncompressesData()
     {
-        var service = CreateService([]);
-        var result = service.GetStream("foo/bar.txt");
-
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public void GetStream_ReturnsNullIfNotAFile()
-    {
-        var service = CreateService([
-            ("foo", Directory, DateTime.Now, [])
-        ]);
-
-        var result = service.GetStream("foo");
-
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public void GetStream_IgnoresLeadingSlashOrDotSlash()
-    {
-        var service = CreateService([
-            ("foo/test 1", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("鏡音リン")),
-            ("/foo/test 2", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("初音ミク")),
-            ("./foo/test 3", RegularFile, DateTime.Now, Encoding.UTF8.GetBytes("巡音ルカ"))
-        ]);
-
-        void GetAndAssert(string path, string expected)
+        var service = CreateService([], beforeCreateService: () =>
         {
-            using var stream = service.GetStream(path);
-            Assert.NotNull(stream);
-            using var reader = new StreamReader(stream);
-            Assert.Equal(expected, reader.ReadToEnd());
-        }
+            // Manually add a row with compressed data, matching the sqlite3 CLI
+            var insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT INTO sqlar(name, mode, mtime, sz, data)
+                VALUES ('rin.txt', 33279, 1715759479, 20, unhex('789C2BCAC400790056EF0843'));
+                """;
+            Assert.Equal(1, insert.ExecuteNonQuery());
+        });
 
-        GetAndAssert("/foo/test 1/", "鏡音リン");
-        GetAndAssert("./foo/test 2", "初音ミク");
-        GetAndAssert("foo/test 3", "巡音ルカ");
-    }
+        var node = Assert.IsType<FileNode>(service.FindPath("rin.txt"));
 
-    [Fact]
-    public void GetStream_SupportsSpecialCharacters()
-    {
-        var service = CreateService([
-            ("foo's bar/テスト ñó. 1/😝", RegularFile, DateTime.Now, [39])
-        ]);
-
-        using var stream = service.GetStream("foo's bar/テスト ñó. 1/😝");
-        Assert.NotNull(stream);
-        Assert.Equal(39, stream.ReadByte());
-    }
-
-    [Fact]
-    public void GetStream_UncompressesData()
-    {
-        var service = CreateService([]);
-
-        // Add a row with compressed data, as created by the sqlite3 CLI
-        var insert = connection.CreateCommand();
-        insert.CommandText = """
-            INSERT INTO sqlar(name, mode, mtime, sz, data)
-            VALUES ('rin.txt', 33279, 1715759479, 20, unhex('789C2BCAC400790056EF0843'));
-            """;
-        Assert.Equal(1, insert.ExecuteNonQuery());
-
-        using var stream = service.GetStream("rin.txt");
-        Assert.NotNull(stream);
-
+        using var stream = service.GetStream(node);
         using var reader = new StreamReader(stream);
+
         Assert.Equal("riiiiiiiiiiiiiiiiiin", reader.ReadToEnd());
     }
 
-    [Theory]
-    [InlineData("foo/bar", true, "/foo/bar/")]
-    [InlineData("foo/bar", false, "/foo/bar")]
-    [InlineData("/foo/bar", true, "/foo/bar/")]
-    [InlineData("/foo/bar/", false, "/foo/bar")]
-    [InlineData("./foo/bar", false, "/foo/bar")]
-    [InlineData("/", true, "/")]
-    [InlineData("./", true, "/")]
-    [InlineData(".", true, "/")]
-    [InlineData("", true, "/")]
-    public void NormalizePath(string input, bool isDirectory, string expected)
-    {
-        var service = CreateService([]);
-        var actual = service.NormalizePath(input, isDirectory);
-
-        Assert.Equal(expected, actual);
-    }
-
     [Fact]
-    public void CanOverrideTableName()
+    public void HandlesSimpleFileSymlinks()
     {
-        var service = CreateService([
-            ("blah", RegularFile, DateTime.Now, [])
-        ], DefaultOptions with
-        {
-            TableName = "Files"
-        });
-
-        var root = service.ListDirectory("/");
-
-        Assert.NotNull(root);
-        Assert.Equal(["blah"], root.Select(x => x.Name));
-    }
-
-    [Fact]
-    public void ResolveSymlink_HandlesSimpleFileSymlinks()
-    {
-        var service = CreateService([
-            ("a/b/relative", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("../thing1")),
-            ("a/b/absolute", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X/thing2")),
-        ]);
-
         // This is the case where only the last segment is a symlink
-        Assert.Equal("/a/thing1", service.ResolveSymlink("/a/b/relative"));
-        Assert.Equal("/X/thing2", service.ResolveSymlink("/a/b/absolute"));
-    }
-
-    [Fact]
-    public void ResolveSymlink_HandlesSimpleDirectorySymlinks()
-    {
         var service = CreateService([
             ("a/b/relative", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("../thing1")),
             ("a/b/absolute", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X/thing2")),
+            ("a/thing1", RegularFile, DateTime.Now, []),
+            ("X/thing2", RegularFile, DateTime.Now, []),
         ]);
 
-        // This tests that it correctly rewrites the part of the path that's linked to another dir
-        Assert.Equal("/a/thing1/c/d", service.ResolveSymlink("/a/b/relative/c/d"));
-        Assert.Equal("/X/thing2/c/d", service.ResolveSymlink("/a/b/absolute/c/d"));
+        var relative = Assert.IsType<SymbolicLinkNode>(service.FindPath("/a/b/relative"));
+        var absolute = Assert.IsType<SymbolicLinkNode>(service.FindPath("/a/b/absolute"));
+
+        Assert.Equal("/a/thing1", relative.TargetNode?.Path.ToString());
+        Assert.Equal("/X/thing2", absolute.TargetNode?.Path.ToString());
     }
 
     [Fact]
-    public void ResolveSymlink_HandlesComplicatedSymlinks()
+    public void HandlesSimpleDirectorySymlinks()
     {
+        // This tests that it correctly rewrites the part of the path that's linked to another dir
+        var service = CreateService([
+            ("a/b/relative", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("../thing1")),
+            ("a/b/absolute", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X/thing2")),
+            ("a/thing1/c/d", RegularFile, DateTime.Now, []),
+            ("X/thing2/c/d", RegularFile, DateTime.Now, []),
+        ]);
+
+        var relative = Assert.IsType<FileNode>(service.FindPath("/a/b/relative/c/d"));
+        var absolute = Assert.IsType<FileNode>(service.FindPath("/a/b/absolute/c/d"));
+
+        Assert.Equal("/a/thing1/c/d", relative.Path.ToString());
+        Assert.Equal("/X/thing2/c/d", absolute.Path.ToString());
+    }
+
+    [Fact]
+    public void HandlesComplicatedSymlinks()
+    {
+        // (╯°□°)╯︵ ┻━┻
         var service = CreateService([
             ("a/b", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("B2")),
             ("a/B2", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/A2")),
             ("A2", Directory, DateTime.Now, Encoding.UTF8.GetBytes("decoy!")),
-            ("A2/c", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("./c2/c3/"))
+            ("A2/c", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("./c2/c3/")),
+            ("A2/c2/c3/d", RegularFile, DateTime.Now, []),
         ]);
 
-        // (╯°□°)╯︵ ┻━┻
-        Assert.Equal("/A2/c2/c3/d", service.ResolveSymlink("/a/b/c/d"));
+        var symlink = Assert.IsType<FileNode>(service.FindPath("/a/b/c/d"));
+
+        // /a/b/c/d -> /a/B2/c/d -> /A2/c/d -> /A2/c2/c3/d
+        Assert.Equal("/A2/c2/c3/d", symlink.Path.ToString());
     }
 
     [Fact]
-    public void ResolveSymlink_ThrowsIfRecursive()
+    public void SymlinkTargetNodeIsNullIfRecursive()
     {
         var service = CreateService([
             ("a/b", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("/X")),
@@ -500,15 +336,16 @@ public sealed class SqlarServiceTests : IDisposable
         ]);
 
         // Segments repeat but not recursive: /a/b/c -> /X/c -> /a/b/Y -> /X/Y
-        Assert.Equal("/X/Y", service.ResolveSymlink("/a/b/c"));
+        var ok = Assert.IsType<SymbolicLinkNode>(service.FindPath("/a/b/c"));
+        Assert.Equal("/X/Y", ok.TargetNode?.Path.ToString());
 
         // Recursive: /a/b/c/d -> /X/c/d -> /a/b/Y/d -> ( /X/Y/d -> /a/b/Z -> /X/Z -> /X/Y/d )
-        Assert.Throws<RecursiveSymlinkException>(
-            () => service.ResolveSymlink("/a/b/c/d"));
+        var notOk = Assert.IsType<SymbolicLinkNode>(service.FindPath("/a/b/c/d"));
+        Assert.Null(notOk.TargetNode);
     }
 
     [Fact]
-    public void ResolveSymlink_ThrowsIfSelfReferential()
+    public void SymlinkTargetNodeIsNullIfSelfReferential()
     {
         var service = CreateService([
             ("foo/self", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("self")),
@@ -516,10 +353,27 @@ public sealed class SqlarServiceTests : IDisposable
         ]);
 
         // Not self-referencing: /foo/parent/parent -> /foo/parent -> /foo
-        Assert.Equal("/foo", service.ResolveSymlink("/foo/parent/parent"));
+        var ok = Assert.IsType<SymbolicLinkNode>(service.FindPath("/foo/parent/parent"));
+        Assert.Equal("/foo", ok.TargetNode?.Path.ToString());
 
         // Self-referencing: /foo/self -> /foo/self -> /foo/self -> ...
-        Assert.Throws<RecursiveSymlinkException>(
-            () => service.ResolveSymlink("/foo/self"));
+        var notOk = Assert.IsType<SymbolicLinkNode>(service.FindPath("/foo/self"));
+        Assert.Null(notOk.TargetNode);
+    }
+
+    [Fact]
+    public void DereferencesSymlinks()
+    {
+        var service = CreateService([
+            ("foo", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("bar")),
+            ("foo2", Symlink, DateTime.Now, Encoding.UTF8.GetBytes("bar2")),
+            ("bar", RegularFile, DateTime.Now, []),
+        ]);
+
+        var foo = Assert.IsType<FileNode>(service.FindPath("foo", dereference: true));
+        Assert.Equal("/bar", foo.Path.ToString());
+
+        var foo2 = Assert.IsType<SymbolicLinkNode>(service.FindPath("foo2", dereference: true));
+        Assert.Null(foo2.TargetNode);
     }
 }

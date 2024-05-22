@@ -8,7 +8,7 @@ namespace SqliteArchive.Nodes;
 /// <summary>
 /// Represents a node in the Sqlar virtual filesystem.
 /// </summary>
-[DebuggerDisplay("{Path,nq}", Name = "{GetType().Name,nq}")]
+[DebuggerDisplay("{GetType().Name,nq} {Path}")]
 public class Node
 {
     private Mode mode;
@@ -31,6 +31,10 @@ public class Node
     /// <summary>
     /// The node's absolute path.
     /// </summary>
+    /// <remarks>
+    /// This is the node's "real path," i.e. the resolved absolute path as would be returned by the <c>realpath</c>
+    /// command.
+    /// </remarks>
     public Path Path { get; }
 
     /// <summary>
