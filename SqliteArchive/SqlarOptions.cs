@@ -1,9 +1,9 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-namespace SqliteArchive.Server;
+namespace SqliteArchive;
 
-public record ServerOptions
+public record SqlarOptions
 {
     public static readonly string HelpText = """
         Environment variables:
@@ -18,16 +18,21 @@ public record ServerOptions
                                SI = Use SI units (KB, MB, GB, TB)
 
         SortDirectoriesFirst   Group directories before files (default: true)
+        
+        CaseInsensitive        Treat the archive as a case-insensitive filesystem
+                               (default: false)
 
         Charset                Sets the charset in the Content-Type header of file
                                streams. Empty string to disable. (default: utf-8)
         """;
 
-    public required SizeFormat SizeFormat { get; init; }
+    public SizeFormat SizeFormat { get; init; }
 
-    public required bool SortDirectoriesFirst { get; init; }
+    public bool SortDirectoriesFirst { get; init; }
 
-    public required string Charset { get; init; }
+    public bool CaseInsensitive { get; init; }
+
+    public string Charset { get; init; } = "";
 }
 
 public enum SizeFormat

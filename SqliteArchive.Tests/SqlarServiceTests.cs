@@ -1,10 +1,13 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging.Abstractions;
-using SqliteArchive.Nodes;
 using System.Text;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
+using SqliteArchive.Nodes;
 using Xunit;
 
 namespace SqliteArchive.Tests;
@@ -18,6 +21,9 @@ public sealed class SqlarServiceTests : IDisposable
     private const int Symlink = 0xa1ff;
 
     private readonly SqliteConnection connection;
+
+    private SqlarOptions options = new();
+    private ILogger<SqlarService> logger = NullLogger<SqlarService>.Instance;
 
     public SqlarServiceTests()
     {
@@ -66,7 +72,7 @@ public sealed class SqlarServiceTests : IDisposable
 
         // Instantiate service
         beforeCreateService?.Invoke();
-        return new SqlarService(connection, NullLogger<SqlarService>.Instance);
+        return new SqlarService(connection, Options.Create(options), logger);
     }
 
     public void Dispose() => connection.Dispose();
@@ -425,5 +431,50 @@ public sealed class SqlarServiceTests : IDisposable
 
         var foo2 = Assert.IsType<SymbolicLinkNode>(service.FindPath("foo2", dereference: true));
         Assert.Null(foo2.TargetNode);
+    }
+
+    [Fact]
+    public void CaseSensitiveFileSystem()
+    {
+        var service = CreateService([
+            ("dir/foo", RegularFile, DateTime.Now, []),
+            ("dir/Foo", RegularFile, DateTime.Now, []),
+            ("Dir/bar", RegularFile, DateTime.Now, []),
+        ]);
+
+        var root = Assert.IsType<DirectoryNode>(service.FindPath("/"));
+        var lowercaseDir = Assert.IsType<DirectoryNode>(service.FindPath("dir"));
+
+        Assert.Equal(["dir", "Dir"], root.Children.Select(n => n.Name));
+        Assert.Equal(["foo", "Foo"], lowercaseDir.Children.Select(n => n.Name));
+        Assert.Null(service.FindPath("DIR/FOO"));
+    }
+
+    [Fact]
+    public void CaseInsensitiveFileSystem()
+    {
+        var mockLogger = new Mock<ILogger<SqlarService>>();
+        
+        options = options with { CaseInsensitive = true };
+        logger = mockLogger.Object;
+
+        var service = CreateService([
+            ("dir/foo", RegularFile, DateTime.Now, []),
+            ("dir/Foo", RegularFile, DateTime.Now, []),
+            ("Dir/bar", RegularFile, DateTime.Now, []),
+        ]);
+
+        var root = Assert.IsType<DirectoryNode>(service.FindPath("/"));
+        var lowercaseDir = Assert.IsType<DirectoryNode>(service.FindPath("dir"));
+
+        Assert.Equal(["dir"], root.Children.Select(n => n.Name));
+        Assert.Equal(["foo", "bar"], lowercaseDir.Children.Select(n => n.Name));
+        Assert.IsType<FileNode>(service.FindPath("DIR/FOO"));
+
+        // Should log a warning about the duplicate file entry
+        mockLogger.Verify(logger => logger.Log(
+            LogLevel.Warning, 0,
+            It.Is<It.IsAnyType>((o, t) => o.ToString() == "Path \"/dir/Foo\" exists in the archive multiple times."),
+            null, It.IsAny<Func<It.IsAnyType, Exception?, string>>()));
     }
 }

@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SqliteArchive.Helpers;
 using SqliteArchive.Nodes;
 
@@ -13,14 +14,19 @@ namespace SqliteArchive;
 public class SqlarService : ISqlarService
 {
     private readonly SqliteConnection connection;
+    private readonly SqlarOptions options;
     private readonly ILogger<SqlarService> logger;
 
-    private readonly DirectoryNode root = new("", Mode.Directory, default, null);
+    private readonly DirectoryNode root;
 
-    public SqlarService(SqliteConnection connection, ILogger<SqlarService> logger)
+    public SqlarService(SqliteConnection connection, IOptions<SqlarOptions> options, ILogger<SqlarService> logger)
     {
         this.connection = connection;
+        this.options = options.Value;
         this.logger = logger;
+
+        root = new DirectoryNode(options.Value.CaseInsensitive ?
+            StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
         InitializeFileTree();
     }
@@ -43,7 +49,7 @@ public class SqlarService : ISqlarService
             if (node is not DirectoryNode directory)
             {
                 logger.LogDebug("Tried to find \"{Path}\" but \"{Ancestor}\" is not a directory.",
-                    path, node.Path);
+                    path.ToString(), node.Path.ToString());
 
                 return null;
             }
@@ -140,7 +146,7 @@ public class SqlarService : ISqlarService
             if (node is not null)
             {
                 // Duplicate entries
-                logger.LogWarning("Path \"{Path}\" exists in the archive multiple times.", path);
+                logger.LogWarning("Path \"{Path}\" exists in the archive multiple times.", path.ToString());
                 continue;
             }
 
@@ -209,7 +215,7 @@ public class SqlarService : ISqlarService
             {
                 // Illogical archive
                 logger.LogWarning("Path \"{Path}\" exists in the archive, but \"{Ancestor}\" also exists and is not a directory.",
-                    path, node.Path);
+                    path.ToString(), node.Path.ToString());
 
                 return null;
             }
@@ -235,7 +241,7 @@ public class SqlarService : ISqlarService
 
         if (symlink.ResolutionState == SymlinkResolutionState.StartedResolving) // We've looped back
         {
-            logger.LogWarning("Recursive symlink detected at \"{Path}\".", symlink.Path);
+            logger.LogWarning("Recursive symlink detected at \"{Path}\".", symlink.Path.ToString());
 
             target = null;
             return false;
@@ -244,13 +250,14 @@ public class SqlarService : ISqlarService
         Path absoluteTarget = symlink.Parent!.Path + symlink.Target;
 
         symlink.ResolutionState = SymlinkResolutionState.StartedResolving;
-
         target = FindPath(absoluteTarget, dereference: true);
+
         if (target is SymbolicLinkNode)
         {
             // Dereferencing failed either due to broken symlink or recursion
             target = null;
         }
+
         symlink.TargetNode = target;
         symlink.ResolutionState = SymlinkResolutionState.Resolved;
 

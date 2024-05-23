@@ -13,14 +13,14 @@ public class SqlarController : Controller
 {
     private readonly ISqlarService sqlarService;
     private readonly IContentTypeProvider contentTypeProvider;
-    private readonly ServerOptions options;
+    private readonly SqlarOptions options;
     private readonly ILogger<SqlarController> logger;
     private readonly NodeComparer comparer;
 
     public SqlarController(
         ISqlarService sqlarService,
         IContentTypeProvider contentTypeProvider,
-        IOptions<ServerOptions> options,
+        IOptions<SqlarOptions> options,
         ILogger<SqlarController> logger)
     {
         this.sqlarService = sqlarService;

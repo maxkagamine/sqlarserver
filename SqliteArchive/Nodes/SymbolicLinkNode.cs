@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0
 
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 
 namespace SqliteArchive.Nodes;
 
@@ -13,7 +12,8 @@ public class SymbolicLinkNode : Node
 {
     private Node? targetNode;
 
-    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, long compressedSize, Node parent, string target)
+    internal SymbolicLinkNode(string name, Mode mode, DateTime dateModified, long compressedSize, DirectoryNode parent,
+                              string target)
         : base(name, mode, dateModified, size: compressedSize /* Stored uncompressed, but sz is -1 */, compressedSize, parent)
     {
         Target = target;

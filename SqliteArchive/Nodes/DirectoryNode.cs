@@ -8,21 +8,34 @@ namespace SqliteArchive.Nodes;
 /// </summary>
 public class DirectoryNode : Node
 {
-    // TODO: We could add case-insensitive support by setting this dictionary to OrdinalIgnoreCase
-    private readonly Dictionary<string, Node> children = [];
+    private readonly Dictionary<string, Node> children;
 
     private readonly Lazy<long> totalSize;
     private readonly Lazy<long> totalCompressedSize;
     private readonly Lazy<double> totalCompressionRatio;
 
-    internal DirectoryNode(string name, Mode mode, DateTime dateModified, Node? parent)
+    private DirectoryNode(string name, Mode mode, DateTime dateModified, DirectoryNode? parent, IEqualityComparer<string> filenameComparer)
         : base(name, mode, dateModified, size: 0, compressedSize: 0, parent)
     {
+        children = new Dictionary<string, Node>(filenameComparer);
+
         // These properties must not be accessed during initialization / before all nodes have been added to the tree
         totalSize = new(() => Children.Sum(n => n is DirectoryNode d ? d.TotalSize : n.Size));
         totalCompressedSize = new(() => Children.Sum(n => n is DirectoryNode d ? d.TotalCompressedSize : n.CompressedSize));
         totalCompressionRatio = new(() => totalSize.Value == 0 ? 0 : 1 - ((double)totalCompressedSize.Value / totalSize.Value));
     }
+
+    internal DirectoryNode(string name, Mode mode, DateTime dateModified, DirectoryNode parent)
+        : this(name, mode, dateModified, parent, parent.children.Comparer)
+    { }
+
+    /// <summary>
+    /// Creates the root directory.
+    /// </summary>
+    /// <param name="filenameComparer">The comparer used to define the virtual filesystem's case sensitivity.</param>
+    internal DirectoryNode(IEqualityComparer<string> filenameComparer)
+        : this("", Mode.Directory, default, null, filenameComparer)
+    { }
 
     /// <summary>
     /// The directory contents.

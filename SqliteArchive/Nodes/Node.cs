@@ -13,7 +13,7 @@ public class Node
 {
     private Mode mode;
 
-    internal Node(string name, Mode mode, DateTime dateModified, long size, long compressedSize, Node? parent)
+    internal Node(string name, Mode mode, DateTime dateModified, long size, long compressedSize, DirectoryNode? parent)
     {
         Name = name;
         Path = parent?.Path + name;
@@ -76,9 +76,9 @@ public class Node
     public double CompressionRatio => Size == 0 ? 0 : 1 - ((double)CompressedSize / Size);
 
     /// <summary>
-    /// The parent node, or <see langword="null"/> if the root node.
+    /// The parent directory, or <see langword="null"/> if the current node is the root.
     /// </summary>
-    public Node? Parent { get; }
+    public DirectoryNode? Parent { get; }
 
     /// <summary>
     /// Whether this node is a directory, or a symlink that eventually points to one.
