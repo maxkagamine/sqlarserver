@@ -3,34 +3,40 @@
 
 namespace SqliteArchive;
 
+// Note: Most of these options are specific to the presentation layer. Split those out if using this project elsewhere.
 public record SqlarOptions
 {
     public static readonly string HelpText = """
         Environment variables:
 
-        TZ                     Timezone for displaying date modified (default: UTC)
-                               See [3m]8;;https://w.wiki/4Jx\List of tz database time zones]8;;\[m
+        TZ                 Timezone for displaying date modified (default: UTC)
+                           See [3m]8;;https://w.wiki/4Jx\List of tz database time zones]8;;\[m
 
-        LANG                   Locale used for formatting (default: en_US)
+        LANG               Locale used for formatting (default: en_US)
 
-        SizeFormat             Bytes = Display file sizes in bytes without formatting
-                               Binary = Use binary units (KiB, MiB, GiB, TiB) (default)
-                               SI = Use SI units (KB, MB, GB, TB)
+        SizeFormat         Bytes = Display file sizes in bytes without formatting
+                           Binary = Use binary units (KiB, MiB, GiB, TiB) (default)
+                           SI = Use SI units (KB, MB, GB, TB)
 
-        SortDirectoriesFirst   Group directories before files (default: true)
-        
-        CaseInsensitive        Treat the archive as a case-insensitive filesystem
-                               (default: false)
+        DirectoriesFirst   Group directories before files (default: true)
 
-        Charset                Sets the charset in the Content-Type header of file
-                               streams. Empty string to disable. (default: utf-8)
+        CaseInsensitive    Treat the archive as a case-insensitive filesystem
+                           (default: false)
+
+        StaticSite         Disable directory listing and serve index.html files where
+                           present and /404.html when not found (default: false)
+
+        Charset            Sets the charset in the Content-Type header of file streams.
+                           Empty string to disable. (default: utf-8)
         """;
 
     public SizeFormat SizeFormat { get; init; }
 
-    public bool SortDirectoriesFirst { get; init; }
+    public bool DirectoriesFirst { get; init; }
 
     public bool CaseInsensitive { get; init; }
+
+    public bool StaticSite { get; init; }
 
     public string Charset { get; init; } = "";
 }

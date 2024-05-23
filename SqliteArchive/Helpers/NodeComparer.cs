@@ -10,7 +10,7 @@ public class NodeComparer : IComparer<Node>
 {
     private static readonly NaturalSortComparer naturalSortComparer = new(StringComparison.OrdinalIgnoreCase);
 
-    public bool SortDirectoriesFirst { get; set; } = true;
+    public bool DirectoriesFirst { get; set; } = true;
 
     public int Compare(Node? x, Node? y)
     {
@@ -24,7 +24,7 @@ public class NodeComparer : IComparer<Node>
             return 1;
         }
 
-        if (SortDirectoriesFirst)
+        if (DirectoriesFirst)
         {
             if (x.IsDirectory && !y.IsDirectory)
             {
