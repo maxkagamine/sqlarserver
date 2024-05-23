@@ -45,7 +45,6 @@ public class DirectoryNode : Node
     /// </summary>
     public double TotalCompressionRatio => totalCompressionRatio.Value;
 
-    // TODO: Add a unit test for automatic date modified of implicit directories
     public override DateTime DateModified
     {
         get => IsImplicit ? Children.Select(n => n.DateModified).Max() : base.DateModified;

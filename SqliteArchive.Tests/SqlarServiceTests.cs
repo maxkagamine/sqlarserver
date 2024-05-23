@@ -168,6 +168,30 @@ public sealed class SqlarServiceTests : IDisposable
     }
 
     [Fact]
+    public void ImplicitDirectoriesHaveAutomaticDateModified()
+    {
+        var date1 = new DateTime(2017, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+        var date2 = new DateTime(2024, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+        var date3 = new DateTime(2050, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+
+        var service = CreateService([
+            ("implicit dir/foo", RegularFile, date1, []),
+            ("implicit dir/bar", RegularFile, date2, []),
+            ("explicit dir/stuff", RegularFile, date3, []),
+            ("explicit dir", Directory, date1, []),
+            ("empty dir", Directory, date3, []),
+        ]);
+
+        var implicitDir = service.FindPath("implicit dir");
+        var explicitDir = service.FindPath("explicit dir");
+        var emptyDir = service.FindPath("empty dir");
+
+        Assert.Equal(date2, implicitDir?.DateModified);
+        Assert.Equal(date1, explicitDir?.DateModified);
+        Assert.Equal(date3, emptyDir?.DateModified);
+    }
+
+    [Fact]
     public void FilesIncludeSize()
     {
         int size = 39000;
@@ -180,6 +204,32 @@ public sealed class SqlarServiceTests : IDisposable
 
         Assert.NotNull(foo);
         Assert.Equal(size, foo.Size);
+    }
+
+    [Fact]
+    public void CalculatesTotalSizeOfDirectories()
+    {
+        int expectedTotalSize = 39;
+        int expectedTotalCompressedSize = 31;
+        double expectedTotalCompressionRatio = 0.2051;
+
+        var service = CreateService([
+            ("dir/uncompressed", RegularFile, DateTime.Now, Enumerable.Repeat<byte>(0, 19).ToArray()),
+        ], () =>
+        {
+            var insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT INTO sqlar(name, mode, mtime, sz, data)
+                VALUES ('dir/compressed', 33279, 1715759479, 20, unhex('789C2BCAC400790056EF0843'));
+                """;
+            Assert.Equal(1, insert.ExecuteNonQuery());
+        });
+
+        var dir = Assert.IsType<DirectoryNode>(service.FindPath("dir"));
+
+        Assert.Equal(expectedTotalSize, dir.TotalSize);
+        Assert.Equal(expectedTotalCompressedSize, dir.TotalCompressedSize);
+        Assert.Equal(expectedTotalCompressionRatio, dir.TotalCompressionRatio, tolerance: 0.001);
     }
 
     [Fact]
