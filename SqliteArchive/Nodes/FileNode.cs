@@ -5,7 +5,8 @@
 /// </summary>
 public class FileNode : Node
 {
-    internal FileNode(string name, Mode mode, DateTime dateModified, long size, long compressedSize, Node parent, long rowId)
+    internal FileNode(string name, Mode mode, DateTime dateModified, long size, long compressedSize,
+                      DirectoryNode parent, long rowId)
         : base(name, mode, dateModified, size, compressedSize, parent)
     {
         RowId = rowId;
