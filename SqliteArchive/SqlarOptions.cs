@@ -33,8 +33,9 @@ public record SqlarOptions
 
         EnableFtp          Start the FTP server (default: false)
 
-        FtpPasvRange       Port range used for passive mode. Host and container port
-                           range must match. (default: 10000-10099)
+        FtpPasvPorts       Port range used for passive mode. Host and container ports
+                           must match. Avoid too large a range, as many ports can make
+                           docker slow. (default: 10000-10009)
 
         FtpPasvAddress     The FTP server's external IP address (default: 127.0.0.1)
         """;
@@ -51,9 +52,37 @@ public record SqlarOptions
 
     public bool EnableFtp { get; init; }
 
-    public string FtpPasvRange { get; init; } = "";
+    public string FtpPasvPorts { get; init; } = "";
 
-    public IPAddress? FtpPasvAddress { get; init; }
+    public string FtpPasvAddress { get; init; } = "";
+
+    public (int MinPort, int MaxPort, IPAddress Address) ParseFtpPasvOptions()
+    {
+        int dash = FtpPasvPorts.IndexOf('-');
+
+        if (!int.TryParse(dash == -1 ? FtpPasvPorts : FtpPasvPorts[0..dash], out int minPort) ||
+            !int.TryParse(dash == -1 ? FtpPasvPorts : FtpPasvPorts[(dash + 1)..], out int maxPort))
+        {
+            throw new FormatException($"Could not parse {nameof(FtpPasvPorts)}.");
+        }
+
+        if (minPort < 1024)
+        {
+            throw new ArgumentOutOfRangeException($"{nameof(FtpPasvPorts)} must be at least 1024.");
+        }
+
+        if (maxPort < minPort)
+        {
+            throw new ArgumentOutOfRangeException($"{nameof(FtpPasvPorts)} max port is smaller than the min port.");
+        }
+
+        if (!IPAddress.TryParse(FtpPasvAddress, out var address))
+        {
+            throw new FormatException($"Could not parse {nameof(FtpPasvAddress)}.");
+        }
+
+        return (minPort, maxPort, address);
+    }
 }
 
 public enum SizeFormat
