@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SqliteArchive.Ftp\SqliteArchive.Ftp.csproj" />
     <ProjectReference Include="..\SqliteArchive\SqliteArchive.csproj" />
   </ItemGroup>
 

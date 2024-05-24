@@ -34,7 +34,7 @@ public class DirectoryNode : Node
     /// </summary>
     /// <param name="filenameComparer">The comparer used to define the virtual filesystem's case sensitivity.</param>
     internal DirectoryNode(IEqualityComparer<string> filenameComparer)
-        : this("", Mode.Directory, default, null, filenameComparer)
+        : this("", Mode.Directory, DateTime.UnixEpoch, null, filenameComparer)
     { }
 
     /// <summary>

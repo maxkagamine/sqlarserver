@@ -52,7 +52,7 @@ internal class SqlarFileSystem : IUnixFileSystem
         {
             if (symlink.IsBroken)
             {
-                throw new IOException($"{node.Path} is a broken symlink.");
+                throw new Exception($"\"{node.Path}\" is a broken symlink.");
             }
 
             node = symlink.TargetNode;
@@ -60,7 +60,7 @@ internal class SqlarFileSystem : IUnixFileSystem
 
         if (node is not FileNode file)
         {
-            throw new IOException($"{node.Path} is not a regular file.");
+            throw new Exception($"\"{node.Path}\" is not a regular file.");
         }
 
         var stream = sqlarService.GetStream(file);
