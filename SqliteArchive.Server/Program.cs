@@ -25,6 +25,7 @@ if (!File.Exists(args[0]))
 }
 
 var builder = WebApplication.CreateSlimBuilder();
+var options = builder.Configuration.Get<SqlarOptions>()!;
 
 builder.Services.AddControllersWithViews();
 
@@ -57,8 +58,13 @@ builder.Services.AddSingleton<IContentTypeProvider>(new FileExtensionContentType
     }
 });
 
-if (builder.Configuration.GetValue<bool>(nameof(SqlarOptions.EnableFtp)))
+if (options.EnableFtp)
 {
+    builder.Services.Configure<SimplePasvOptions>(pasv =>
+    {
+        (pasv.PasvMinPort, pasv.PasvMaxPort, pasv.PublicAddress) = options.ParseFtpPasvOptions();
+    });
+
     builder.Services.AddFtpServer(ftp => ftp
         .UseSqlarFileSystem()
         .EnableAnonymousAuthentication());
