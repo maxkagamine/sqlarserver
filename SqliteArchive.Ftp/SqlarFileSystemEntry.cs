@@ -13,19 +13,20 @@ internal class SqlarFileSystemEntry : IUnixFileSystemEntry
     {
         Node = node;
         Name = name ?? node.Name;
-        Permissions = new GenericUnixPermissions(
-            user: new GenericAccessMode(
-                read: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.UserRead),
-                write: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.UserWrite),
-                execute: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.UserExecute)),
-            group: new GenericAccessMode(
-                read: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.GroupRead),
-                write: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.GroupWrite),
-                execute: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.GroupExecute)),
-            other: new GenericAccessMode(
-                read: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.OtherRead),
-                write: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.OtherWrite),
-                execute: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.OtherExecute)));
+
+        // While the older LIST command shows the actual Unix permissions, the MLSD command reports "file permissions,
+        // whether read, write, execute is allowed for the login id"[0]. The FTP library handles this by comparing the
+        // current FTP user (anonymous, in this case) against the file owner and interprets the unix permissions
+        // accordingly[1]. So rather than the Unix perms, we should report the FTP capabilities instead: "read only".
+        //
+        // [0]: https://datatracker.ietf.org/doc/html/rfc3659#section-7
+        // [1]: https://github.com/FubarDevelopment/FtpServer/blob/v3.1.2/src/FubarDev.FtpServer.Abstractions/ListFormatters/Facts/PermissionsFact.cs#L105
+        var accessMode = new GenericAccessMode(
+            read: true,
+            write: false,
+            execute: node is DirectoryNode // Still show sensible perms in case the client is using LIST instead of MLSD
+        );
+        Permissions = new GenericUnixPermissions(accessMode, accessMode, accessMode);
     }
 
     internal Node Node { get; }
@@ -40,7 +41,7 @@ internal class SqlarFileSystemEntry : IUnixFileSystemEntry
 
     public long NumberOfLinks => 1;
 
-    public string Owner => "nobody";
+    public string Owner => "anonymous";
 
-    public string Group => "nogroup";
+    public string Group => "anonymous";
 }
