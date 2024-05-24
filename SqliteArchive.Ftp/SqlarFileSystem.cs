@@ -90,10 +90,11 @@ internal class SqlarFileSystem : IUnixFileSystem
     }
 
     [return: NotNullIfNotNull(nameof(node))]
-    private static IUnixFileSystemEntry? CreateEntry(Node? node) => node switch
+    private static IUnixFileSystemEntry? CreateEntry(Node? node, string? name = null) => node switch
     {
-        DirectoryNode dir => new SqlarDirectoryEntry(dir),
-        not null => new SqlarFileEntry(node),
+        SymbolicLinkNode { IsBroken: false } symlink => CreateEntry(symlink.TargetNode, node.Name),
+        DirectoryNode dir => new SqlarDirectoryEntry(dir, name),
+        not null => new SqlarFileEntry(node, name),
         null => null
     };
 
