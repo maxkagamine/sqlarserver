@@ -6,9 +6,10 @@ namespace SqliteArchive.Ftp;
 
 internal class SqlarFileSystemEntry : IUnixFileSystemEntry
 {
-    public SqlarFileSystemEntry(Node node)
+    public SqlarFileSystemEntry(Node node, string? name = null)
     {
         Node = node;
+        Name = name ?? node.Name;
         Permissions = new GenericUnixPermissions(
             user: new GenericAccessMode(
                 read: node.Mode.Permissions.HasFlag(SqliteArchive.Permissions.UserRead),
@@ -26,7 +27,7 @@ internal class SqlarFileSystemEntry : IUnixFileSystemEntry
 
     internal Node Node { get; }
 
-    public string Name => Node.Name;
+    public string Name { get; }
 
     public IUnixPermissions Permissions { get; }
 
