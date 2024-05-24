@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace SqliteArchive;
 
 // Note: Most of these options are specific to the presentation layer. Split those out if using this project elsewhere.
@@ -25,6 +27,13 @@ public record SqlarOptions
 
         Charset            Sets the charset in the Content-Type header of file streams.
                            Empty string to disable. (default: utf-8)
+
+        EnableFtp          Start the FTP server (default: false)
+
+        FtpPasvRange       Port range used for passive mode. Host and container port
+                           range must match. (default: 10000-10099)
+
+        FtpPasvAddress     The FTP server's external IP address (default: 127.0.0.1)
         """;
 
     public SizeFormat SizeFormat { get; init; }
@@ -36,6 +45,12 @@ public record SqlarOptions
     public bool StaticSite { get; init; }
 
     public string Charset { get; init; } = "";
+
+    public bool EnableFtp { get; init; }
+
+    public string FtpPasvRange { get; init; } = "";
+
+    public IPAddress? FtpPasvAddress { get; init; }
 }
 
 public enum SizeFormat
