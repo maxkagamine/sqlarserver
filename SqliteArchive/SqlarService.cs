@@ -203,7 +203,7 @@ public class SqlarService : ISqlarService
             }
             else if (node is null)
             {
-                directory = new DirectoryNode(segment, Mode.Directory, default, parent)
+                directory = new DirectoryNode(segment, Mode.Directory, DateTime.UnixEpoch, parent)
                 {
                     IsImplicit = true
                 };

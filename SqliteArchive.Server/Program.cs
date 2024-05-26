@@ -1,10 +1,12 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+using FubarDev.FtpServer;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqliteArchive;
+using SqliteArchive.Ftp;
 
 static void Help()
 {
@@ -26,6 +28,7 @@ if (!File.Exists(args[0]))
 }
 
 var builder = WebApplication.CreateSlimBuilder();
+var options = builder.Configuration.Get<SqlarOptions>()!;
 
 builder.Services.AddControllersWithViews();
 
@@ -57,6 +60,20 @@ builder.Services.AddSingleton<IContentTypeProvider>(new FileExtensionContentType
         { ".opus", "audio/ogg" },
     }
 });
+
+if (options.EnableFtp)
+{
+    builder.Services.Configure<SimplePasvOptions>(pasv =>
+    {
+        (pasv.PasvMinPort, pasv.PasvMaxPort, pasv.PublicAddress) = options.ParseFtpPasvOptions();
+    });
+
+    builder.Services.AddFtpServer(ftp => ftp
+        .UseSqlarFileSystem()
+        .EnableAnonymousAuthentication());
+
+    builder.Services.AddHostedService<FtpHostedService>();
+}
 
 var app = builder.Build();
 
