@@ -10,7 +10,7 @@ using SqliteArchive.Ftp;
 
 static void Help()
 {
-    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv:ro -p 3939:80 SqliteArchive.Server path/to/sqlite.db\n");
+    Console.Error.WriteLine("Usage: docker run -it --rm -v .:/srv -p 3939:80 ghcr.io/maxkagamine/sqlarserver path/to/sqlite.db\n");
     Console.Error.WriteLine(SqlarOptions.HelpText);
     Environment.Exit(1);
 }
