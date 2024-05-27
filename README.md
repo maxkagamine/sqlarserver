@@ -24,7 +24,7 @@ Download the SQLite source ~~tarball~~ sqlarball and open it in a web browser:
 
 ```
 $ wget https://www.sqlite.org/src/sqlar/sqlite.sqlar
-$ docker run -it --rm -v .:/srv -p 3939:80 sqlarserver sqlite.sqlar
+$ docker run -it --rm -v .:/srv -p 3939:80 ghcr.io/maxkagamine/sqlarserver sqlite.sqlar
 $ open http://localhost:3939
 ```
 
@@ -66,7 +66,7 @@ The following options can be passed as environment variables:
 > [!TIP]
 > Add an alias to your .bashrc or similar so you can just do `sqlarserver foo.db` to bring up the server, like so:
 > ```bash
-> alias sqlarserver='docker run -it --rm -v .:/srv -p 3939:80 -e TZ=America/Los_Angeles sqlarserver'
+> alias sqlarserver='docker run -it --rm -v .:/srv -p 3939:80 -e TZ=America/Los_Angeles ghcr.io/maxkagamine/sqlarserver'
 > ```
 
 ## Running the FTP server
@@ -90,7 +90,7 @@ Although, in the absence of support for sqlar in traditional archive tools (7-Zi
 +    -p 21:21 \
 +    -p 10000-10009:10000-10009 \
 +    -e EnableFtp=true \
-     sqlarserver sqlite.sqlar
+     ghcr.io/maxkagamine/sqlarserver sqlite.sqlar
 ```
 
 Port 21 can be mapped to whatever, but the PASV¹ port range, 10000-10009, needs to be the same on both the host and container since part of the FTP protocol involves the server telling the client what IP and port to connect to for data transfer. You can change it by setting `FtpPasvPorts`. If the server's not running on localhost, you'll need to set `FtpPasvAddress` to whatever IP address you put in your FTP client.
@@ -106,7 +106,7 @@ If you set `StaticSite` to true, it'll disable directory listings and instead se
 
 ```
 $ wget https://gist.github.com/maxkagamine/f8fe0ca583a66ee99aa746362d34eda5/raw/kagamine.dev_2020-07-10.sqlar
-$ docker run -it --rm -v .:/srv -p 3939:80 -e StaticSite=true sqlarserver kagamine.dev_2020-07-10.sqlar
+$ docker run -it --rm -v .:/srv -p 3939:80 -e StaticSite=true ghcr.io/maxkagamine/sqlarserver kagamine.dev_2020-07-10.sqlar
 ```
 
 I don't know why you'd _actually_ do this; in fact the server sets `no-cache` which makes it pretty bad for a website (perhaps that could be made configurable or disabled when `StaticSite` is active, though). But it's an interesting concept, like a modern alternative to MHTML¹.
