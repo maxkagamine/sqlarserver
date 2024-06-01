@@ -22,7 +22,7 @@ public sealed class SqlarServiceTests : IDisposable
 
     private readonly SqliteConnection connection;
 
-    private SqlarOptions options = new();
+    private SqlarOptions options = new() { BlobTable = "sqlar", BlobColumn = "data" };
     private ILogger<SqlarService> logger = NullLogger<SqlarService>.Instance;
 
     public SqlarServiceTests()
@@ -508,7 +508,7 @@ public sealed class SqlarServiceTests : IDisposable
         }
 
         // Create a view
-        // Note: This must contain an additional "rowid" column to support the blob API
+        // Note: This must contain an additional "rowid" column to enable direct blob access
         using var createView = connection.CreateCommand();
         createView.CommandText = """
             CREATE VIEW sqlar(rowid, name, mode, mtime, sz, data) AS
@@ -517,7 +517,11 @@ public sealed class SqlarServiceTests : IDisposable
         createView.ExecuteNonQuery();
 
         // Instantiate service
-        var service = new SqlarService(connection, Options.Create(options), logger);
+        var service = new SqlarService(connection, Options.Create(options with
+        {
+            BlobTable = "files",
+            BlobColumn = "content"
+        }), logger);
 
         // Attempt to list files and retrieve blob
         var root = service.FindPath("/") as DirectoryNode;
