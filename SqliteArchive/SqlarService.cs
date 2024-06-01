@@ -90,9 +90,17 @@ public class SqlarService : ISqlarService
         // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
         // [1]: https://github.com/dotnet/efcore/issues/24312
         // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
-        var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
-        return size < 0 || blob.Length == size ? blob :
-            new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        try
+        {
+            var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
+            return size < 0 || blob.Length == size ? blob :
+                new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("cannot open view"))
+        {
+            // TODO: Show a more helpful exception that the table name option needs to be set
+            throw;
+        }
     }
 
     /// <summary>
