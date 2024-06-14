@@ -12,7 +12,7 @@ public record SqlarOptions
         Environment variables:
 
         TZ                 Timezone for displaying date modified (default: UTC)
-                           See [3m]8;;https://w.wiki/4Jx\List of tz database time zones]8;;\[m
+                           [3mSee ]8;;https://w.wiki/4Jx\List of tz database time zones]8;;\[m
 
         LANG               Locale used for formatting (default: en_US)
 
@@ -31,6 +31,12 @@ public record SqlarOptions
         Charset            Sets the charset in the Content-Type header of file streams.
                            Empty string to disable. (default: utf-8)
 
+        BlobTable          Name of the table holding the blob (default: sqlar)
+                           [3mSee the tip in ]8;;https://github.com/maxkagamine/sqlarserver#readme\the readme]8;;\ on using a view for the sqlar table[m
+        
+        BlobColumn         Name of the column holding the blob (default: data)
+                           [3mSee the tip in ]8;;https://github.com/maxkagamine/sqlarserver#readme\the readme]8;;\ on using a view for the sqlar table[m
+        
         EnableFtp          Start the FTP server (default: false)
 
         FtpPasvPorts       Port range used for passive mode. Host and container ports
@@ -49,6 +55,10 @@ public record SqlarOptions
     public bool StaticSite { get; init; }
 
     public string Charset { get; init; } = "";
+
+    public string BlobTable { get; init; } = "";
+
+    public string BlobColumn { get; init; } = "";
 
     public bool EnableFtp { get; init; }
 

@@ -1,13 +1,13 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using SqliteArchive.Nodes;
+using System.Text;
 using Xunit;
 
 namespace SqliteArchive.Tests;
@@ -22,7 +22,7 @@ public sealed class SqlarServiceTests : IDisposable
 
     private readonly SqliteConnection connection;
 
-    private SqlarOptions options = new();
+    private SqlarOptions options = new() { BlobTable = "sqlar", BlobColumn = "data" };
     private ILogger<SqlarService> logger = NullLogger<SqlarService>.Instance;
 
     public SqlarServiceTests()
@@ -476,5 +476,69 @@ public sealed class SqlarServiceTests : IDisposable
             LogLevel.Warning, 0,
             It.Is<It.IsAnyType>((o, t) => o.ToString() == "Path \"/dir/Foo\" exists in the archive multiple times."),
             null, It.IsAny<Func<It.IsAnyType, Exception?, string>>()));
+    }
+
+    [Fact]
+    public void SupportsViews()
+    {
+        ReadOnlySpan<byte> expectedContent = "鏡音リン"u8;
+
+        // Create a table with the schema suggested by https://sqlite.org/appfileformat.html
+        using var createTable = connection.CreateCommand();
+        createTable.CommandText = """
+            CREATE TABLE files(filename TEXT PRIMARY KEY, content BLOB);
+            """;
+        createTable.ExecuteNonQuery();
+
+        // Add files
+        for (int i = 0; i < 3; i++)
+        {
+            using var insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT INTO files(filename, content)
+                VALUES($name, zeroblob($length));
+                SELECT last_insert_rowid();
+                """;
+            insert.Parameters.AddWithValue("$name", $"file{i}.txt");
+            insert.Parameters.AddWithValue("$length", expectedContent.Length);
+            var rowId = (long)insert.ExecuteScalar()!;
+
+            using var blob = new SqliteBlob(connection, "files", "content", rowId);
+            blob.Write(expectedContent);
+        }
+
+        // Create a view
+        // Note: This must contain an additional "rowid" column to enable direct blob access
+        using var createView = connection.CreateCommand();
+        createView.CommandText = """
+            CREATE VIEW sqlar(rowid, name, mode, mtime, sz, data) AS
+            SELECT rowid, filename, 33279, 0, length(content), content FROM files;
+            """;
+        createView.ExecuteNonQuery();
+
+        // Instantiate service
+        var service = new SqlarService(connection, Options.Create(options with
+        {
+            BlobTable = "files",
+            BlobColumn = "content"
+        }), logger);
+
+        // Attempt to list files and retrieve blob
+        var root = service.FindPath("/") as DirectoryNode;
+
+        Assert.NotNull(root);
+        Assert.Equal(3, root.Children.Count());
+
+        var file = service.FindPath("/file1.txt") as FileNode;
+
+        Assert.NotNull(file);
+        Assert.Equal(Permissions.All, file.Mode.Permissions);
+        Assert.Equal(DateTime.UnixEpoch, file.DateModified);
+
+        using var stream = service.GetStream(file);
+        using var ms = new MemoryStream((int)stream.Length);
+        stream.CopyTo(ms);
+
+        Assert.Equal(expectedContent.ToArray(), ms.ToArray());
     }
 }

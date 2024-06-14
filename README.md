@@ -32,7 +32,15 @@ $ open http://localhost:3939
 
 An [SQLite Archive](https://sqlite.org/sqlar.html), or _sqlar_ for short (probably pronounced /ˈɛs kjuː&#8202;ˈlɑːr/, but I sometimes pronounce it /sklɑːr/ because "sqlarball" sounds funnier that way), is simply an SQLite database that uses a standard table schema¹ for storing files as blobs. The main page goes over some reasons for doing this (the big ones IMO being that your relational/indexed data and files are kept together, use the same ORM, and can have foreign key constraints that simply aren't possible when files are stored externally²), but the advantage of using the sqlar format over an ad hoc table is that it enables use of the sqlite3 CLI's tar-like options &mdash; and now this as well.
 
-My motivation for making this was I had a large dataset and accompanying audio files, where upon deployment these would be pushed to Elasticsearch and S3 respectively, but until then needed to be stored in some intermediate location. I was already using Entity Framework and dumping the data into an sqlite file; at first, I was saving the audio files to a folder, but given that their filenames were SHA1 hashes, there wasn't really any meaning in having them accessible in this way. Rather, it burdened me with having to deal with Windows file paths, potential for missing files, and so on. Moving them into the sqlite file itself meant that the primary key was literally the S3 object name, and I could reference this table via a foreign key to enforce data integrity. Switching between my laptop and desktop is easier, too, as I can just copy the file over.³
+> [!TIP]
+> You can use a [view](https://en.wikipedia.org/wiki/View_(SQL)) to adapt an existing table to the sqlar schema (only sqlarserver supports this currently):
+> ```sql
+> CREATE VIEW sqlar(rowid, name, mode, mtime, sz, data) AS
+> SELECT rowid, filename, 33279, 0, length(content), content FROM files;
+> ```
+> The server uses SQLite's blob API for performance, so it needs to know the rowid (which we've included in the view) and the name of the underlying table and its blob column, which should be passed when running the server as `-e BlobTable=files -e BlobColumn=content`.
+
+My motivation for making this was I had a large dataset and accompanying audio files, where upon deployment these would be pushed to Elasticsearch and S3 respectively, but until then needed to be stored in some intermediate location. At first, I was saving the audio files to a folder, but given that their filenames were SHA1 hashes, there wasn't really any meaning in having them accessible in this way. Rather, it burdened me with having to deal with Windows file paths, potential for missing files, and so on. Moving them into the sqlite file itself meant that the primary key was literally the S3 object name, and I could reference this table via a foreign key to enforce data integrity. Switching between my laptop and desktop is easier, too, as I can just copy the file over.³
 
 But this provided a challenge: for development, I wanted my local server to point to the local audio files, not the production S3 bucket. A separate dev bucket would be overkill. Had these been files on disk, I could simply serve them as static files, but I didn't want to add Microsoft.Data.Sqlite as a dependency and inflate the docker image when it wouldn't need that in production. Preprocessor directives are ugly. What to do? Why not add a separate container to the compose file that just serves the blobs as static files, and use that as a stand-in for S3 in dev! And then, let's add directory listing, like Nginx or Apache! And symlink support, too, even though I wouldn't need it! And, and... _an FTP server!_ What a great idea! Surely this won't balloon into a whole project!
 
@@ -52,13 +60,15 @@ The following options can be passed as environment variables:
 
 |Environment&nbsp;variable|Default&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|Description|
 |---|---|---|
-|`TZ`|UTC|Timezone for displaying date modified (see [_List of tz database time zones_](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones))|
+|`TZ`|UTC|[Timezone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for displaying date modified|
 |`LANG`|en_US|Locale used for formatting numbers etc.|
 |`SizeFormat`|Binary|Bytes = Display file sizes in bytes without formatting<br />Binary = Use binary units (KiB, MiB, GiB, TiB)<br />SI = Use SI units (KB, MB, GB, TB)|
 |`DirectoriesFirst`|true|Group directories before files|
 |`CaseInsensitive`|false|Treat the archive as a case-insensitive filesystem|
 |`StaticSite`|false|Disable directory listing and serve index.html files where present and /404.html when not found|
 |`Charset`|utf-8|Sets the charset in the Content-Type header of file streams. Empty string to disable.|
+|`BlobTable`|sqlar|Name of the table holding the blob<br />_See the tip above on using a view for the sqlar table_|
+|`BlobColumn`|data|Name of the column holding the blob<br />_See the tip above on using a view for the sqlar table_|
 |`EnableFtp`|false|Start the FTP server|
 |`FtpPasvPorts`|10000-10009|Port range used for passive mode. Host and container ports must match. Avoid too large a range, as many ports can make docker slow.|
 |`FtpPasvAddress`|127.0.0.1|The FTP server's external IP address|
@@ -75,7 +85,7 @@ The following options can be passed as environment variables:
 
 <sup>rin.avif artwork by <a href="https://twitter.com/Noartnolife1227/status/1531168810098917376">としたのあ (@Noartnolife1227)</a></sup>
 
-Thanks to Junker's [C# FTP server](https://github.com/FubarDevelopment/FtpServer/) having an abstracted file system interface, I was able to write an implementation that uses sqlarserver's internal file node tree as a backend. Now you can browse the contents of an SQLite Archive via FTP!
+Thanks to FubarDev's [C# FTP server](https://github.com/FubarDevelopment/FtpServer/) having an abstracted file system interface, I was able to write an implementation that uses sqlarserver's internal file node tree as a backend. Now you can browse the contents of an SQLite Archive via FTP!
 
 ![But why?](.github/images/but%20why.avif)
 

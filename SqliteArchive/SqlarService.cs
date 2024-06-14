@@ -1,18 +1,23 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-using System.Diagnostics.CodeAnalysis;
-using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqliteArchive.Helpers;
 using SqliteArchive.Nodes;
+using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 
 namespace SqliteArchive;
 
 public class SqlarService : ISqlarService
 {
+    const string SqlarViewExceptionMessage =
+        "When using a view for the sqlar table, it must include the rowid column from the underlying table, and " +
+        $"{nameof(SqlarOptions.BlobTable)} and {nameof(SqlarOptions.BlobColumn)} must be set to the name of the " +
+        "underlying table and its data column, respectively.";
+
     private readonly SqliteConnection connection;
     private readonly SqlarOptions options;
     private readonly ILogger<SqlarService> logger;
@@ -28,7 +33,14 @@ public class SqlarService : ISqlarService
         root = new DirectoryNode(options.Value.CaseInsensitive ?
             StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
-        InitializeFileTree();
+        try
+        {
+            InitializeFileTree();
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("no such column: rowid"))
+        {
+            throw new Exception(SqlarViewExceptionMessage, ex);
+        }
     }
 
     public Node? FindPath(string path, bool dereference = false) => FindPath(new Path(path), dereference);
@@ -90,9 +102,16 @@ public class SqlarService : ISqlarService
         // [0]: https://sqlite.org/sqlar/doc/trunk/README.md
         // [1]: https://github.com/dotnet/efcore/issues/24312
         // [2]: https://www.sqlite.org/sqlar.html#managing_sqlite_archives_from_application_code
-        var blob = new SqliteBlob(connection, "sqlar", "data", rowId, readOnly: true);
-        return size < 0 || blob.Length == size ? blob :
-            new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        try
+        {
+            var blob = new SqliteBlob(connection, options.BlobTable, options.BlobColumn, rowId, readOnly: true);
+            return size < 0 || blob.Length == size ? blob :
+                new ZLibStream(blob, CompressionMode.Decompress, leaveOpen: false);
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("cannot open view"))
+        {
+            throw new Exception(SqlarViewExceptionMessage, ex);
+        }
     }
 
     /// <summary>
