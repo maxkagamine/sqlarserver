@@ -32,7 +32,15 @@ $ open http://localhost:3939
 
 [SQLiteアーカイブ](https://sqlite.org/sqlar.html)（通称：sqlar）とはファイルをBLOBとして保存するための標準テーブルスキーマ<sup>１</sup>のあるただのSQLiteデータベースである。そうする理由はメインページがいくつか説明する（私見では、主のはリレーショナルかインデックスされたデータとファイルが一緒に格納されて、同じORMが使えて、そしてファイルが外部に保存される場合に不可能の外部キー制約ができることだ<sup>２</sup>）でもsqlarフォーマットを特別に作ったテーブルの代わりに使用するメリットはsqlite3のCLIのtarみたいなオプション（そしてこれ）が使えることだ。
 
-私がこれを作る動機は、大きいデータセットと付属オーディオファイルを持って、導入時にそれぞれElasticsearchとS3にプッシュするけどその時までどこかの中間の場所で保存しないとならなかった。私がすでにEntity Frameworkを使ってデータをsqliteファイルに書き込んでいて、最初はオーディオファイルをフォルダーに保存していたけど、ファイル名がSHA1ハッシュだと考えると、このようにアクセスできるようにするのは特に意味がなかった。逆に、Windowsファイルパスや存在しないファイル等を扱うことをかかえた。ファイルをデータベースに移動するのは主キーがS3のオブジェクト名と同じもので、そのテーブルを外部キーによって参照してデータ整合性を強化できるという意味した。それにラップトップとデスクトップを切り替えるために一つのファイルをコピーしていいから楽になった<sup>３</sup>。
+> [!TIP]
+> [ビュー](https://ja.wikipedia.org/wiki/%E3%83%93%E3%83%A5%E3%83%BC_(%E3%83%87%E3%83%BC%E3%82%BF%E3%83%99%E3%83%BC%E3%82%B9))を使用して、既存のテーブルをsqlarスキーマに合わせることができる（現在sqlarserverのみサポートする）:
+> ```sql
+> CREATE VIEW sqlar(rowid, name, mode, mtime, sz, data) AS
+> SELECT rowid, filename, 33279, 0, length(content), content FROM files;
+> ```
+> サーバーはパフォーマンスのためにSQLiteのBlob APIを使うので、rowid（ビューに含まれた）と元になるテーブル名と列名を知る必要がある。実行時に`-e BlobTable=files -e BlobColumn=content`として渡す。
+
+私がこれを作る動機は、大きいデータセットと付属オーディオファイルを持って、導入時にそれぞれElasticsearchとS3にプッシュするけどその時までどこかの中間の場所で保存しないとならなかった。最初はオーディオファイルをフォルダーに保存していたけど、ファイル名がSHA1ハッシュだと考えると、このようにアクセスできるようにするのは特に意味がなかった。逆に、Windowsファイルパスや存在しないファイル等を扱うことをかかえた。ファイルをデータベースに移動したため、主キーがS3のオブジェクト名と同じもので、そのテーブルを外部キーによって参照してデータ整合性を強化できるようになった。それにラップトップとデスクトップを切り替えるために一つのファイルをコピーしていいから楽になった<sup>３</sup>。
 
 でも問題があった。開発環境ではローカルサーバーが本番のS3バケットではなくそのローカルのファイルに指してほしかった。別の開発バケットなんて不要だった。ディスク上のファイルだったら単純に静的ファイルとして提供できたけど、本番で要らないMicrosoft.Data.Sqliteへの依存関係を追加してDockerイメージを膨らましたくなかった。プリプロセッサ　ディレクティブは醜い。どうしよう？BLOBを静的ファイルとして提供するだけの別のコンテイナーをComposeファイルに追加して開発でS3の代わりにしようか！そしてNginxやApacheみたいなディレクトリリスト機能も入れって、必要のないのにシンボリックリンク対応を実装しよう！それでそれで……FTPサーバーを！なんていいアイデアだ！けして全く別のプロジェクトに膨大してしまわないでしょう！
 
@@ -52,13 +60,15 @@ $ open http://localhost:3939
 
 |環&#8288;境&#8288;変&#8288;数|デ&#8288;フ&#8288;ォ&#8288;ル&#8288;ト&#8288;値&nbsp;&nbsp;|説&#8288;明|
 |---|---|---|
-|`TZ`|UTC|変更時刻を表示するためのタイムゾーン ([_List of tz database time zones_](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)を参照<!-- English only -->)|
+|`TZ`|UTC|変更時刻を表示するための[タイムゾーン](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)<!-- English only -->|
 |`LANG`|en_US|数値等をフォーマットするためのロケール|
 |`SizeFormat`|Binary|Bytes = ファイルサイズを書式なしでバイトで表示する<br />Binary = バイナリ単位を使う（KiB、MiB、GiB、TiB）<br />SI = SI単位を使う（KB、MB、GB、TB）|
 |`DirectoriesFirst`|true|ディレクトリをファイルの前にグループする|
 |`CaseInsensitive`|false|大文字小文字を区別しないファイルシステムとして扱う|
 |`StaticSite`|false|ディレクトリリストを無効して、存在するとindex.htmlを提供して、見つけられない場合/404.htmlを提供する|
 |`Charset`|utf-8|ファイルストリームのContent-Typeヘッダーの文字コードを設定する。無効にするには空の文字列に設定して。|
+|`BlobTable`|sqlar|BLOBを含むテーブル名<br />※ sqlarテーブルとしてビューを使用することに関する上記のTipを参照してください|
+|`BlobColumn`|data|BLOBを含む列名<br />※ sqlarテーブルとしてビューを使用することに関する上記のTipを参照してください|
 |`EnableFtp`|false|FTPサーバーを起動する|
 |`FtpPasvPorts`|10000-10009|受動モードのためのポート範囲。ホストとコンテイナーのポートは一致する必要がある。ポート数が大きい場合はDockerが遅くなる可能性があるので、広い範囲は推奨しない。|
 |`FtpPasvAddress`|127.0.0.1|FTPサーバーの外部IPアドレス|
@@ -75,7 +85,7 @@ $ open http://localhost:3939
 
 <sup>rin.avifイラストは<a href="https://twitter.com/Noartnolife1227/status/1531168810098917376">としたのあ (@Noartnolife1227)</a>による</sup>
 
-Junkerの[C#のFTPサーバー](https://github.com/FubarDevelopment/FtpServer/)がファイルシステムの抽象化のインタフェースがあるのお陰で、私はバックエンドとしてsqlarserverの内部用のファイルツリーを使う実装を作成できた。これでSQLiteアーカイブの内容をFTP経由で参照できる！
+FubarDevの[C#のFTPサーバー](https://github.com/FubarDevelopment/FtpServer/)がファイルシステムの抽象化のインタフェースがあるのお陰で、私はバックエンドとしてsqlarserverの内部用のファイルツリーを使う実装を作成できた。これでSQLiteアーカイブの内容をFTP経由で参照できる！
 
 ![だがなぜ](.github/images/but%20why.avif)
 
@@ -95,7 +105,7 @@ Junkerの[C#のFTPサーバー](https://github.com/FubarDevelopment/FtpServer/)�
 
 ポート21は何でもにマッピングできるけど、FTPプロトコルの一部はサーバーがデータ転送のためにどのIPとポートに接続すべきだとクライアントに伝えることなので、PASV<sup>１</sup>のポート範囲の10000-10009はホストとコンテイナーが一致する必要がある。`FtpPasvPorts`の設定で変更できる。もしサーバーがlocalhostで実行してなければ`FtpPasvAddress`をFTPクライアントに入力すると同じIPアドレスに設定する必要がある。
 
-> <sup>１</sup> PASVとはFTPの受動モード（英：passive mode）に指して、サーバーがデータ転送のためにポートを開けてクライアントに接続するように指し示すことだ。（ポート21はコントロールで、コマンド通信のためでけに使われる。）その反対はアクティブモードで、ファイアウォールの前の時代🦕からだしサーバーが直接にクライアントへの接続を確立することだった。
+> <sup>１</sup> PASVとはFTPの受動モード（英：passive mode）に指して、サーバーがデータ転送のためにポートを開けてクライアントに接続するように指し示すことだ。（ポート21はコントロールで、コマンド通信のためだけに使われる。）その反対はアクティブモードで、ファイアウォールの前の時代🦕からだしサーバーが直接にクライアントへの接続を確立することだった。
 
 > [!WARNING]
 > Dockerはデフォルトで公開されたポートを0.0.0.0にバインドして外部からアクセスできるようにファイアウォール規則を作るのだ。信頼できないネットワークでは、またはマシンがインターネットに開けてる場合は、明示的にlocalhostにバインドする（例えば、`-p 127.0.0.1:21:21`）か[デフォルトのバインド・アドレスを変更](https://docs.docker.com/network/packet-filtering-firewalls/#setting-the-default-bind-address-for-containers)しないとならない。（DockerのLinux版を使用しているWSLユーザーはこれを気にする必要はないはずだ。）
@@ -119,7 +129,7 @@ $ docker run -it --rm -v .:/srv -p 3939:80 -e StaticSite=true ghcr.io/maxkagamin
 >
 > <sup>２</sup> 中身を覗いてみて物事を実行しているDockerコンテイナーを見ない限りよね。でもインフラを無視するこそがサーバーレスじゃない？
 >
-> <sup>３</sup> ２をご参照。でもこれを[AOTコンパイル](https://learn.microsoft.com/ja-jp/aspnet/core/fundamentals/native-aot?view=aspnetcore-8.0)できるなら、SQLiteデータベースを実行可能に埋め込む方法があると思う…🤔
+> <sup>３</sup> ２をご参照。でもこれを[AOTコンパイル](https://learn.microsoft.com/ja-jp/aspnet/core/fundamentals/native-aot?view=aspnetcore-8.0)できるなら、SQLiteデータベースを実行ファイルに埋め込む方法があると思う…🤔
 
 ## ライセンス
 
