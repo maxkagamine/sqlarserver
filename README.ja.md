@@ -24,7 +24,7 @@ SQLiteソースコードのターボール、じゃなくてスクラーボー�
 
 ```
 $ wget https://www.sqlite.org/src/sqlar/sqlite.sqlar
-$ docker run -it --rm -v .:/srv -p 3939:80 ghcr.io/maxkagamine/sqlarserver sqlite.sqlar
+$ docker run -it --rm -v .:/srv -p 3939:80 kagamine/sqlarserver sqlite.sqlar
 $ open http://localhost:3939
 ```
 
@@ -76,7 +76,7 @@ $ open http://localhost:3939
 > [!TIP]
 > このようなエイリアスを.bashrc等に追加すると`sqlarserver foo.db`だけでサーバーを起動できるようになる：
 > ```bash
-> alias sqlarserver='docker run -it --rm -v .:/srv -p 3939:80 -e TZ=Asia/Tokyo ghcr.io/maxkagamine/sqlarserver'
+> alias sqlarserver='docker run -it --rm -v .:/srv -p 3939:80 -e TZ=Asia/Tokyo kagamine/sqlarserver'
 > ```
 
 ## FTPサーバーの実行
@@ -100,7 +100,7 @@ FubarDevの[C#のFTPサーバー](https://github.com/FubarDevelopment/FtpServer/
 +    -p 21:21 \
 +    -p 10000-10009:10000-10009 \
 +    -e EnableFtp=true \
-     ghcr.io/maxkagamine/sqlarserver sqlite.sqlar
+     kagamine/sqlarserver sqlite.sqlar
 ```
 
 ポート21は何でもにマッピングできるけど、FTPプロトコルの一部はサーバーがデータ転送のためにどのIPとポートに接続すべきだとクライアントに伝えることなので、PASV<sup>１</sup>のポート範囲の10000-10009はホストとコンテイナーが一致する必要がある。`FtpPasvPorts`の設定で変更できる。もしサーバーがlocalhostで実行してなければ`FtpPasvAddress`をFTPクライアントに入力すると同じIPアドレスに設定する必要がある。
@@ -116,7 +116,7 @@ FubarDevの[C#のFTPサーバー](https://github.com/FubarDevelopment/FtpServer/
 
 ```
 $ wget https://gist.github.com/maxkagamine/f8fe0ca583a66ee99aa746362d34eda5/raw/kagamine.dev_2020-07-10.sqlar
-$ docker run -it --rm -v .:/srv -p 3939:80 -e StaticSite=true ghcr.io/maxkagamine/sqlarserver kagamine.dev_2020-07-10.sqlar
+$ docker run -it --rm -v .:/srv -p 3939:80 -e StaticSite=true kagamine/sqlarserver kagamine.dev_2020-07-10.sqlar
 ```
 
 実際にsqlarserverをこのために使う理由が分からないけどね。それにサーバーが`no-cache`を設定するからウェブサイトのためにかなり不味い（それが構成可能にするか`StaticSite`が有効の場合で無効することができるけど）でもコンセプトとして面白いと思う。現代のMHTML<sup>１</sup>の代替品のように。
