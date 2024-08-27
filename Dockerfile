@@ -17,7 +17,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 RUN apk add --no-cache tzdata icu-libs
 
-USER app
 WORKDIR /srv
 EXPOSE 80 21 10000-10009
 
@@ -31,4 +30,4 @@ COPY --from=build /app/publish /app
 ENTRYPOINT ["dotnet", "/app/SqliteArchive.Server.dll"]
 
 HEALTHCHECK --start-period=1m --start-interval=1s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${ASPNETCORE_HTTP_PORTS} || exit 1
