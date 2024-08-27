@@ -30,4 +30,4 @@ COPY --from=build /app/publish /app
 ENTRYPOINT ["dotnet", "/app/SqliteArchive.Server.dll"]
 
 HEALTHCHECK --start-period=1m --start-interval=1s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${ASPNETCORE_HTTP_PORTS} || exit 1
