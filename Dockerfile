@@ -17,7 +17,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 
 RUN apk add --no-cache tzdata icu-libs
 
-USER app
 WORKDIR /srv
 EXPOSE 80 21 10000-10009
 
